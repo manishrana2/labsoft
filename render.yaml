@@ -3,13 +3,11 @@ services:
     name: manishrana2-labsoft
     env: node
     plan: free
-    buildCommand: npm ci && npm run build
-    startCommand: npm run start
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: NODE_ENV=production npm run start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: 22
-      - key: NODE_ENV
-        value: production
       - key: JWT_SECRET
         generateValue: true
