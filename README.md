@@ -91,7 +91,7 @@ For a stable client link, deploy on Render (no local tunnel needed).
 
 ### Build/Start used in production
 
-- Build: `npm ci && npm run build`
+- Build: `npm ci --production=false && npm run build`
 - Start: `npm run start`
 
 After deploy completes, share the Render URL with client directly.
