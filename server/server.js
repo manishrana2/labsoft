@@ -18,6 +18,7 @@ const usersDbPath = path.join(__dirname, 'data', 'users.json')
 const registersDbPath = path.join(__dirname, 'data', 'registers.json')
 const auditDbPath = path.join(__dirname, 'data', 'audit.json')
 const registerHistoryDbPath = path.join(__dirname, 'data', 'register-history.json')
+const testMasterDbPath = path.join(__dirname, 'data', 'test-master.json')
 const backupsDirPath = path.join(__dirname, 'data', 'backups')
 
 const DEFAULT_USER = {
@@ -27,6 +28,72 @@ const DEFAULT_USER = {
 }
 
 const RECORD_STATUSES = ['Pending', 'In Progress', 'Reported']
+
+const DEFAULT_TEST_MASTER = {
+  tests: [
+    {
+      id: 't1',
+      testName: 'Ambient Air Quality Monitoring & Analysis (Extended)',
+      description: 'Ambient Air Quality Monitoring & Analysis',
+      displayOrder: 1
+    },
+    {
+      id: 't2',
+      testName: 'Ambient Air Quality Monitoring & Analysis (Basic)',
+      description: 'Ambient Air Quality Monitoring & Analysis (Basic)',
+      displayOrder: 2
+    },
+    { id: 't3', testName: 'Indoor Air', description: 'Indoor Air', displayOrder: 3 },
+    { id: 't4', testName: 'Ambient Noise', description: 'Ambient Noise', displayOrder: 4 },
+    { id: 't5', testName: 'Indoor Noise', description: 'Indoor Noise', displayOrder: 5 },
+    { id: 't6', testName: 'DG Stack Emission', description: 'DG Stack Emission', displayOrder: 6 },
+    { id: 't7', testName: 'DG Noise', description: 'DG Noise', displayOrder: 7 },
+    { id: 't8', testName: 'STP / ETP / Waste Water', description: 'STP / ETP / Waste Water', displayOrder: 8 },
+    { id: 't9', testName: 'Drinking Water Testing', description: 'Drinking Water Testing', displayOrder: 9 },
+    { id: 't10', testName: 'Ground Water Quality', description: 'Ground Water Quality', displayOrder: 10 },
+    { id: 't11', testName: 'Surface Water Bodies', description: 'Surface Water Bodies', displayOrder: 11 },
+    { id: 't12', testName: 'Soil Quality Test', description: 'Soil Quality Test', displayOrder: 12 }
+  ],
+  parameters: [
+    {
+      id: 'p1',
+      testId: 't1',
+      parameterName: 'PM10, PM2.5, SO2, NO2, CO, Ammonia, Arsenic, Benzene, Lead, Nickel, Benzo(a)pyrene',
+      displayOrder: 1
+    },
+    { id: 'p2', testId: 't2', parameterName: 'PM10, PM2.5, SO2, NO2, CO', displayOrder: 1 },
+    { id: 'p3', testId: 't3', parameterName: 'PM, SO2, NO2, CO', displayOrder: 1 },
+    { id: 'p4', testId: 't4', parameterName: 'Leq', displayOrder: 1 },
+    { id: 'p5', testId: 't5', parameterName: 'Leq', displayOrder: 1 },
+    { id: 'p6', testId: 't6', parameterName: 'PM, SOx, NOx, CO', displayOrder: 1 },
+    { id: 'p7', testId: 't7', parameterName: 'Leq', displayOrder: 1 },
+    { id: 'p8', testId: 't8', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+    {
+      id: 'p9',
+      testId: 't9',
+      parameterName: 'pH, Colour, Odour, Taste, Turbidity, TDS, Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate',
+      displayOrder: 1
+    },
+    {
+      id: 'p10',
+      testId: 't10',
+      parameterName: 'pH, Value, Colour, Odour, Taste, Turbidity, TDS, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)',
+      displayOrder: 1
+    },
+    {
+      id: 'p11',
+      testId: 't11',
+      parameterName: 'pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic',
+      displayOrder: 1
+    },
+    {
+      id: 'p12',
+      testId: 't12',
+      parameterName: 'Texture, Sand %, Clay %, Moisture %, Silt %, pH, Electrical Conductivity, Potassium, Sodium, Calcium, Magnesium, Sodium Absorption Ratio, Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Available Phosphorus, Organic Matter, Porosity',
+      displayOrder: 1
+    }
+  ]
+}
 
 const getUserRole = (user) => {
   if (user?.role === 'admin' || user?.role === 'staff') {
@@ -108,6 +175,27 @@ const readRegisters = async () => {
 
 const writeRegisters = async (registers) => {
   await fs.writeFile(registersDbPath, JSON.stringify(registers, null, 2))
+}
+
+const readTestMaster = async () => {
+  try {
+    const content = await fs.readFile(testMasterDbPath, 'utf8')
+    const parsed = JSON.parse(content)
+
+    return {
+      tests: Array.isArray(parsed.tests) ? parsed.tests : [],
+      parameters: Array.isArray(parsed.parameters) ? parsed.parameters : []
+    }
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      return { tests: [], parameters: [] }
+    }
+    throw error
+  }
+}
+
+const writeTestMaster = async (payload) => {
+  await fs.writeFile(testMasterDbPath, JSON.stringify(payload, null, 2))
 }
 
 const readAudit = async () => {
@@ -231,6 +319,18 @@ const ensureAuditFile = async () => {
 const ensureRegisterHistoryFile = async () => {
   const entries = await readRegisterHistory()
   await writeRegisterHistory(entries)
+}
+
+const ensureTestMasterFile = async () => {
+  const current = await readTestMaster()
+  const hasTests = Array.isArray(current.tests) && current.tests.length > 0
+  const hasParameters = Array.isArray(current.parameters) && current.parameters.length > 0
+
+  if (hasTests && hasParameters) {
+    return
+  }
+
+  await writeTestMaster(DEFAULT_TEST_MASTER)
 }
 
 const ensureBackupsDir = async () => {
@@ -381,6 +481,17 @@ app.get('/api/me', authenticateToken, (req, res) => {
 app.get('/api/registers', authenticateToken, async (_req, res) => {
   const registers = await readRegisters()
   return res.json(registers)
+})
+
+app.get('/api/test-master', authenticateToken, async (_req, res) => {
+  const testMaster = await readTestMaster()
+
+  const tests = [...testMaster.tests].sort((first, second) => Number(first.displayOrder ?? 0) - Number(second.displayOrder ?? 0))
+  const parameters = [...testMaster.parameters].sort(
+    (first, second) => Number(first.displayOrder ?? 0) - Number(second.displayOrder ?? 0)
+  )
+
+  return res.json({ tests, parameters })
 })
 
 app.post('/api/registers/issue', authenticateToken, async (req, res) => {
@@ -895,6 +1006,7 @@ app.post('/api/admin/backup', authenticateToken, requireAdmin, async (req, res) 
   const registers = await readRegisters()
   const audit = await readAudit()
   const registerHistory = await readRegisterHistory()
+  const testMaster = await readTestMaster()
 
   const fileName = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
   const filePath = path.join(backupsDirPath, fileName)
@@ -904,7 +1016,8 @@ app.post('/api/admin/backup', authenticateToken, requireAdmin, async (req, res) 
     users,
     registers,
     audit,
-    registerHistory
+    registerHistory,
+    testMaster
   }
 
   await fs.writeFile(filePath, JSON.stringify(payload, null, 2))
@@ -945,6 +1058,10 @@ app.post('/api/admin/restore', authenticateToken, requireAdmin, async (req, res)
   const drawnRecords = Array.isArray(parsed?.registers?.drawnRecords) ? parsed.registers.drawnRecords : null
   const audit = Array.isArray(parsed?.audit) ? parsed.audit : []
   const registerHistory = Array.isArray(parsed?.registerHistory) ? parsed.registerHistory : []
+  const testMaster = {
+    tests: Array.isArray(parsed?.testMaster?.tests) ? parsed.testMaster.tests : [],
+    parameters: Array.isArray(parsed?.testMaster?.parameters) ? parsed.testMaster.parameters : []
+  }
 
   if (!users || !issueRecords || !drawnRecords) {
     return res.status(400).json({ message: 'Backup file format is invalid.' })
@@ -954,8 +1071,10 @@ app.post('/api/admin/restore', authenticateToken, requireAdmin, async (req, res)
   await writeRegisters({ issueRecords, drawnRecords })
   await writeAudit(audit)
   await writeRegisterHistory(registerHistory)
+  await writeTestMaster(testMaster)
   await ensureUserDefaults()
   await ensureRegisterIds()
+  await ensureTestMasterFile()
   await appendAudit({ actor: req.user?.email, action: 'BACKUP_RESTORE', target: fileName, details: 'Backup restored' })
 
   return res.status(204).send()
@@ -974,6 +1093,7 @@ ensureSeedUser()
   .then(() => ensureRegisterIds())
   .then(() => ensureAuditFile())
   .then(() => ensureRegisterHistoryFile())
+  .then(() => ensureTestMasterFile())
   .then(() => ensureBackupsDir())
   .then(() => {
     app.listen(port, () => {

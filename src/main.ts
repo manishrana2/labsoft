@@ -73,6 +73,85 @@ type RegistersResponse = {
   drawnRecords: DrawnRecord[]
 }
 
+type TestMasterTest = {
+  id: string
+  testName: string
+  description: string
+  displayOrder?: number
+}
+
+type TestMasterParameter = {
+  id: string
+  testId: string
+  parameterName: string
+  displayOrder?: number
+}
+
+type TestMasterResponse = {
+  tests: TestMasterTest[]
+  parameters: TestMasterParameter[]
+}
+
+const FALLBACK_TESTS: TestMasterTest[] = [
+  { id: 't1', testName: 'Ambient Air Quality Monitoring & Analysis (Extended)', description: 'Ambient Air Quality Monitoring & Analysis', displayOrder: 1 },
+  {
+    id: 't2',
+    testName: 'Ambient Air Quality Monitoring & Analysis (Basic)',
+    description: 'Ambient Air Quality Monitoring & Analysis (Basic)',
+    displayOrder: 2
+  },
+  { id: 't3', testName: 'Indoor Air', description: 'Indoor Air', displayOrder: 3 },
+  { id: 't4', testName: 'Ambient Noise', description: 'Ambient Noise', displayOrder: 4 },
+  { id: 't5', testName: 'Indoor Noise', description: 'Indoor Noise', displayOrder: 5 },
+  { id: 't6', testName: 'DG Stack Emission', description: 'DG Stack Emission', displayOrder: 6 },
+  { id: 't7', testName: 'DG Noise', description: 'DG Noise', displayOrder: 7 },
+  { id: 't8', testName: 'STP / ETP / Waste Water', description: 'STP / ETP / Waste Water', displayOrder: 8 },
+  { id: 't9', testName: 'Drinking Water Testing', description: 'Drinking Water Testing', displayOrder: 9 },
+  { id: 't10', testName: 'Ground Water Quality', description: 'Ground Water Quality', displayOrder: 10 },
+  { id: 't11', testName: 'Surface Water Bodies', description: 'Surface Water Bodies', displayOrder: 11 },
+  { id: 't12', testName: 'Soil Quality Test', description: 'Soil Quality Test', displayOrder: 12 }
+]
+
+const FALLBACK_PARAMETERS: TestMasterParameter[] = [
+  {
+    id: 'p1',
+    testId: 't1',
+    parameterName: 'PM10, PM2.5, SO2, NO2, CO, Ammonia, Arsenic, Benzene, Lead, Nickel, Benzo(a)pyrene',
+    displayOrder: 1
+  },
+  { id: 'p2', testId: 't2', parameterName: 'PM10, PM2.5, SO2, NO2, CO', displayOrder: 1 },
+  { id: 'p3', testId: 't3', parameterName: 'PM, SO2, NO2, CO', displayOrder: 1 },
+  { id: 'p4', testId: 't4', parameterName: 'Leq', displayOrder: 1 },
+  { id: 'p5', testId: 't5', parameterName: 'Leq', displayOrder: 1 },
+  { id: 'p6', testId: 't6', parameterName: 'PM, SOx, NOx, CO', displayOrder: 1 },
+  { id: 'p7', testId: 't7', parameterName: 'Leq', displayOrder: 1 },
+  { id: 'p8', testId: 't8', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+  {
+    id: 'p9',
+    testId: 't9',
+    parameterName: 'pH, Colour, Odour, Taste, Turbidity, TDS, Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate',
+    displayOrder: 1
+  },
+  {
+    id: 'p10',
+    testId: 't10',
+    parameterName: 'pH, Value, Colour, Odour, Taste, Turbidity, TDS, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)',
+    displayOrder: 1
+  },
+  {
+    id: 'p11',
+    testId: 't11',
+    parameterName: 'pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic',
+    displayOrder: 1
+  },
+  {
+    id: 'p12',
+    testId: 't12',
+    parameterName: 'Texture, Sand %, Clay %, Moisture %, Silt %, pH, Electrical Conductivity, Potassium, Sodium, Calcium, Magnesium, Sodium Absorption Ratio, Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Available Phosphorus, Organic Matter, Porosity',
+    displayOrder: 1
+  }
+]
+
 type AdminUser = {
   id: string
   email: string
@@ -140,6 +219,8 @@ const adminAlerts: AdminAlert[] = []
 const adminAuditEntries: AuditEntry[] = []
 const adminRegisterHistoryEntries: RegisterHistoryEntry[] = []
 const adminBackups: string[] = []
+const testMasterTests: TestMasterTest[] = []
+const testMasterParameters: TestMasterParameter[] = []
 let adminMessage = ''
 let adminMessageState: '' | 'error' = ''
 let activeSession: Session | null = null
@@ -216,6 +297,475 @@ const setAdminRegisterHistoryEntries = (entries: RegisterHistoryEntry[]): void =
 const setAdminBackups = (backups: string[]): void => {
   adminBackups.splice(0, adminBackups.length, ...backups)
 }
+
+const setTestMaster = (tests: TestMasterTest[], parameters: TestMasterParameter[]): void => {
+  const hasTests = Array.isArray(tests) && tests.length > 0
+  const hasParameters = Array.isArray(parameters) && parameters.length > 0
+
+  testMasterTests.splice(0, testMasterTests.length, ...(hasTests ? tests : FALLBACK_TESTS))
+  testMasterParameters.splice(0, testMasterParameters.length, ...(hasParameters ? parameters : FALLBACK_PARAMETERS))
+}
+
+const normalizeMasterKey = (value: string): string => value.trim().toLowerCase()
+
+const getParameterOptions = (description: string): string[] => {
+  const match = testMasterTests.find((item) => normalizeMasterKey(item.description) === normalizeMasterKey(description))
+  if (!match) {
+    return []
+  }
+
+  const raw = testMasterParameters
+    .filter((item) => item.testId === match.id)
+    .sort((first, second) => (first.displayOrder ?? 0) - (second.displayOrder ?? 0))
+    .map((item) => item.parameterName)
+
+  const normalizedSeen = new Set<string>()
+  const options: string[] = []
+
+  raw.forEach((entry) => {
+    entry
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => {
+        const key = normalizeMasterKey(part)
+        if (normalizedSeen.has(key)) {
+          return
+        }
+
+        normalizedSeen.add(key)
+        options.push(part)
+      })
+  })
+
+  return options
+}
+
+const renderSampleDescriptionOptions = (selectedDescription: string): string => {
+  const normalizedSelected = normalizeMasterKey(selectedDescription)
+  const sortedTests = testMasterTests
+    .slice()
+    .sort((first, second) => (first.displayOrder ?? 0) - (second.displayOrder ?? 0))
+  const hasSelectedInMaster = sortedTests.some((item) => normalizeMasterKey(item.description) === normalizedSelected)
+
+  const options = sortedTests
+    .map((item) => {
+      const selected = normalizeMasterKey(item.description) === normalizedSelected ? 'selected' : ''
+      return `<option value="${escapeHtml(item.description)}" ${selected}>${escapeHtml(item.description)}</option>`
+    })
+    .join('')
+
+  if (selectedDescription && !hasSelectedInMaster) {
+    return `<option value="${escapeHtml(selectedDescription)}" selected>${escapeHtml(selectedDescription)}</option>${options}`
+  }
+
+  return options
+}
+
+const readNumericPart = (value: string): number | null => {
+  const match = String(value).match(/(\d+)/)
+  if (!match) {
+    return null
+  }
+
+  const parsed = Number.parseInt(match[1], 10)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+const getNextSerialNumber = (records: Array<{ srNo: string }>): string => {
+  let maxSerial = 0
+
+  records.forEach((record) => {
+    const numeric = readNumericPart(record.srNo)
+    if (numeric && numeric > maxSerial) {
+      maxSerial = numeric
+    }
+  })
+
+  return String(maxSerial + 1)
+}
+
+const setInputValue = (input: HTMLInputElement | null, value: string): void => {
+  if (!input) {
+    return
+  }
+
+  input.value = value
+}
+
+const getInitialParameterValue = (description: string, fallback: string): string => {
+  const options = getParameterOptions(description)
+  if (fallback && options.some((item) => normalizeMasterKey(item) === normalizeMasterKey(fallback))) {
+    return fallback
+  }
+
+  if (fallback && options.length === 0) {
+    return fallback
+  }
+
+  return options[0] ?? ''
+}
+
+const renderParameterOptions = (description: string, selectedValue: string): string => {
+  const options = getParameterOptions(description)
+  const normalizedSelected = normalizeMasterKey(selectedValue)
+  const hasSelected = options.some((item) => normalizeMasterKey(item) === normalizedSelected)
+
+  const mapped = options
+    .map((item) => {
+      const selected = normalizeMasterKey(item) === normalizedSelected ? 'selected' : ''
+      return `<option value="${escapeHtml(item)}" ${selected}>${escapeHtml(item)}</option>`
+    })
+    .join('')
+
+  if (selectedValue && !hasSelected) {
+    return `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(selectedValue)}</option>${mapped}`
+  }
+
+  return mapped
+}
+
+const syncParameterSelectOptions = (
+  descriptionSelect: HTMLSelectElement | null,
+  parameterSelect: HTMLSelectElement | null,
+  preserveExisting: boolean
+): void => {
+  if (!descriptionSelect || !parameterSelect) {
+    return
+  }
+
+  const currentValue = preserveExisting ? parameterSelect.value : ''
+  const nextValue = getInitialParameterValue(descriptionSelect.value, currentValue)
+  const optionsMarkup = renderParameterOptions(descriptionSelect.value, nextValue)
+
+  parameterSelect.innerHTML = `<option value="">Select parameter</option>${optionsMarkup}`
+
+  if (nextValue) {
+    parameterSelect.value = nextValue
+  }
+}
+
+const getInitialIssueSrNo = (editing: IssueRecord | undefined): string => {
+  if (editing?.srNo) {
+    return editing.srNo
+  }
+
+  return getNextSerialNumber(issueRecords)
+}
+
+const getInitialIssueCodeNo = (
+  editing: IssueRecord | undefined,
+  draftCodeNo: string | undefined
+): string => {
+  if (editing?.codeNo) {
+    return editing.codeNo
+  }
+
+  return draftCodeNo ?? ''
+}
+
+const getInitialDrawnSrNo = (editing: DrawnRecord | undefined): string => {
+  if (editing?.srNo) {
+    return editing.srNo
+  }
+
+  return getNextSerialNumber(drawnRecords)
+}
+
+const renderSampleDescriptionSelect = (selectedDescription: string, label: string): string => {
+  return `
+    <label class="field-group"><span>${label}</span>
+      <select name="sampleDescription" required>
+        <option value="">Select sample type</option>
+        ${renderSampleDescriptionOptions(selectedDescription)}
+      </select>
+    </label>
+  `
+}
+
+const renderAutoParameterField = (value: string, label: string): string => {
+  return `
+    <label class="field-group"><span>${label}</span>
+      <select name="parameterToBeTested" required>
+        <option value="">Select parameter</option>
+        ${value ? `<option value="${escapeHtml(value)}" selected>${escapeHtml(value)}</option>` : ''}
+      </select>
+    </label>
+  `
+}
+
+const renderAutoSerialField = (value: string, readonly: boolean, label = 'Sr.No.'): string => {
+  return `<label class="field-group"><span>${label}</span><input name="srNo" value="${escapeHtml(value)}" required ${readonly ? 'readonly' : ''} /></label>`
+}
+
+const renderAutoCodeField = (value: string): string => {
+  return `<label class="field-group"><span>Code No.</span><input name="codeNo" value="${escapeHtml(value)}" required /></label>`
+}
+
+const renderSectionHint = (text: string): string => `<p class="draft-note">${text}</p>`
+
+const getIssueDescriptionValue = (editing: IssueRecord | undefined, draft: Partial<IssueRecord>): string => {
+  return editing?.sampleDescription ?? draft.sampleDescription ?? ''
+}
+
+const getDrawnDescriptionValue = (editing: DrawnRecord | undefined, draft: Partial<DrawnRecord>): string => {
+  return editing?.sampleDescription ?? draft.sampleDescription ?? ''
+}
+
+const getIssueParameterValue = (editing: IssueRecord | undefined, draft: Partial<IssueRecord>, description: string): string => {
+  return getInitialParameterValue(description, editing?.parameterToBeTested ?? draft.parameterToBeTested ?? '')
+}
+
+const getDrawnParameterValue = (editing: DrawnRecord | undefined, draft: Partial<DrawnRecord>, description: string): string => {
+  return getInitialParameterValue(description, editing?.parameterToBeTested ?? draft.parameterToBeTested ?? '')
+}
+
+const shouldReadonlyAutoField = (isEditing: boolean): boolean => !isEditing
+
+const syncAutoIssueFields = (form: HTMLFormElement, isEditing: boolean): void => {
+  const srNoInput = form.querySelector<HTMLInputElement>('input[name="srNo"]')
+  const descriptionSelect = form.querySelector<HTMLSelectElement>('select[name="sampleDescription"]')
+  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+
+  if (!isEditing && !srNoInput?.value.trim()) {
+    setInputValue(srNoInput, getNextSerialNumber(issueRecords))
+  }
+
+  syncParameterSelectOptions(descriptionSelect, parameterSelect, true)
+}
+
+const syncAutoDrawnFields = (form: HTMLFormElement, isEditing: boolean): void => {
+  const srNoInput = form.querySelector<HTMLInputElement>('input[name="srNo"]')
+  const descriptionSelect = form.querySelector<HTMLSelectElement>('select[name="sampleDescription"]')
+  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+
+  if (!isEditing && !srNoInput?.value.trim()) {
+    setInputValue(srNoInput, getNextSerialNumber(drawnRecords))
+  }
+
+  syncParameterSelectOptions(descriptionSelect, parameterSelect, true)
+}
+
+const bindIssueAutoEvents = (form: HTMLFormElement, isEditing: boolean): void => {
+  void isEditing
+  const descriptionSelect = form.querySelector<HTMLSelectElement>('select[name="sampleDescription"]')
+  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+
+  descriptionSelect?.addEventListener('change', () => {
+    syncParameterSelectOptions(descriptionSelect, parameterSelect, false)
+  })
+}
+
+const bindDrawnAutoEvents = (form: HTMLFormElement, isEditing: boolean): void => {
+  void isEditing
+  const descriptionSelect = form.querySelector<HTMLSelectElement>('select[name="sampleDescription"]')
+  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+
+  descriptionSelect?.addEventListener('change', () => {
+    syncParameterSelectOptions(descriptionSelect, parameterSelect, false)
+  })
+}
+
+const syncIssueDraftFromAutoFields = (form: HTMLFormElement): void => {
+  const srNoInput = form.querySelector<HTMLInputElement>('input[name="srNo"]')
+
+  if (!srNoInput) {
+    return
+  }
+
+  if (!srNoInput.value.trim()) {
+    srNoInput.value = getNextSerialNumber(issueRecords)
+  }
+}
+
+const syncDrawnDraftFromAutoFields = (form: HTMLFormElement): void => {
+  const srNoInput = form.querySelector<HTMLInputElement>('input[name="srNo"]')
+  if (!srNoInput) {
+    return
+  }
+
+  if (!srNoInput.value.trim()) {
+    srNoInput.value = getNextSerialNumber(drawnRecords)
+  }
+}
+
+const getIssueFieldValue = (formData: FormData, name: string): string => String(formData.get(name) ?? '').trim()
+
+const getDrawnFieldValue = (formData: FormData, name: string): string => String(formData.get(name) ?? '').trim()
+
+const ensureIssueAutoDefaults = (payload: IssueRecord): IssueRecord => {
+  const nextPayload = { ...payload }
+
+  if (!nextPayload.srNo) {
+    nextPayload.srNo = getNextSerialNumber(issueRecords)
+  }
+
+  if (nextPayload.sampleDescription && !nextPayload.parameterToBeTested) {
+    nextPayload.parameterToBeTested = getInitialParameterValue(nextPayload.sampleDescription, '')
+  }
+
+  return nextPayload
+}
+
+const ensureDrawnAutoDefaults = (payload: DrawnRecord): DrawnRecord => {
+  const nextPayload = { ...payload }
+
+  if (!nextPayload.srNo) {
+    nextPayload.srNo = getNextSerialNumber(drawnRecords)
+  }
+
+  if (nextPayload.sampleDescription && !nextPayload.parameterToBeTested) {
+    nextPayload.parameterToBeTested = getInitialParameterValue(nextPayload.sampleDescription, '')
+  }
+
+  return nextPayload
+}
+
+const getIssueDraftOrEditing = (editing: IssueRecord | undefined): Partial<IssueRecord> => (editing ? {} : readDraft<IssueRecord>(ISSUE_DRAFT_KEY))
+
+const getDrawnDraftOrEditing = (editing: DrawnRecord | undefined): Partial<DrawnRecord> => (editing ? {} : readDraft<DrawnRecord>(DRAWN_DRAFT_KEY))
+
+const getIssueFormInitialValues = (editing: IssueRecord | undefined): {
+  issueDraft: Partial<IssueRecord>
+  srNoValue: string
+  codeNoValue: string
+  descriptionValue: string
+  parameterValue: string
+} => {
+  const issueDraft = getIssueDraftOrEditing(editing)
+  const srNoValue = getInitialIssueSrNo(editing)
+  const codeNoValue = getInitialIssueCodeNo(editing, issueDraft.codeNo)
+  const descriptionValue = getIssueDescriptionValue(editing, issueDraft)
+  const parameterValue = getIssueParameterValue(editing, issueDraft, descriptionValue)
+
+  return { issueDraft, srNoValue, codeNoValue, descriptionValue, parameterValue }
+}
+
+const getDrawnFormInitialValues = (editing: DrawnRecord | undefined): {
+  drawnDraft: Partial<DrawnRecord>
+  srNoValue: string
+  descriptionValue: string
+  parameterValue: string
+} => {
+  const drawnDraft = getDrawnDraftOrEditing(editing)
+  const srNoValue = getInitialDrawnSrNo(editing)
+  const descriptionValue = getDrawnDescriptionValue(editing, drawnDraft)
+  const parameterValue = getDrawnParameterValue(editing, drawnDraft, descriptionValue)
+
+  return { drawnDraft, srNoValue, descriptionValue, parameterValue }
+}
+
+const renderIssueAutoFields = (
+  srNoValue: string,
+  codeNoValue: string,
+  descriptionValue: string,
+  parameterValue: string,
+  isEditing: boolean
+): string => {
+  return [
+    renderAutoSerialField(srNoValue, shouldReadonlyAutoField(isEditing)),
+    renderAutoCodeField(codeNoValue),
+    renderSampleDescriptionSelect(descriptionValue, 'Sample Description'),
+    renderAutoParameterField(parameterValue, 'Parameter to be tested')
+  ].join('')
+}
+
+const renderDrawnAutoFields = (
+  srNoValue: string,
+  descriptionValue: string,
+  parameterValue: string,
+  isEditing: boolean
+): string => {
+  return [
+    renderAutoSerialField(srNoValue, shouldReadonlyAutoField(isEditing)),
+    renderSampleDescriptionSelect(descriptionValue, 'Sample Description'),
+    renderAutoParameterField(parameterValue, 'Parameter to be Tested')
+  ].join('')
+}
+
+const renderDraftHint = (isEditing: boolean): string => (isEditing ? '' : renderSectionHint('Draft auto-save is on.'))
+
+const initializeIssueAutoUi = (form: HTMLFormElement, isEditing: boolean): void => {
+  syncAutoIssueFields(form, isEditing)
+  bindIssueAutoEvents(form, isEditing)
+}
+
+const initializeDrawnAutoUi = (form: HTMLFormElement, isEditing: boolean): void => {
+  syncAutoDrawnFields(form, isEditing)
+  bindDrawnAutoEvents(form, isEditing)
+}
+
+const readIssuePayloadFromForm = (formData: FormData): IssueRecord => {
+  return ensureIssueAutoDefaults({
+    srNo: getIssueFieldValue(formData, 'srNo'),
+    codeNo: getIssueFieldValue(formData, 'codeNo'),
+    status: normalizeRecordStatus(formData.get('status')),
+    sampleDescription: getIssueFieldValue(formData, 'sampleDescription'),
+    parameterToBeTested: getIssueFieldValue(formData, 'parameterToBeTested'),
+    issuedOn: getIssueFieldValue(formData, 'issuedOn'),
+    issuedBy: getIssueFieldValue(formData, 'issuedBy'),
+    issuedTo: getIssueFieldValue(formData, 'issuedTo'),
+    reportDueOn: getIssueFieldValue(formData, 'reportDueOn'),
+    receivedBy: getIssueFieldValue(formData, 'receivedBy'),
+    reportedOn: getIssueFieldValue(formData, 'reportedOn'),
+    reportedByRemarks: getIssueFieldValue(formData, 'reportedByRemarks')
+  })
+}
+
+const readDrawnPayloadFromForm = (formData: FormData): DrawnRecord => {
+  return ensureDrawnAutoDefaults({
+    srNo: getDrawnFieldValue(formData, 'srNo'),
+    status: normalizeRecordStatus(formData.get('status')),
+    sampleDescription: getDrawnFieldValue(formData, 'sampleDescription'),
+    sampleDrawnOn: getDrawnFieldValue(formData, 'sampleDrawnOn'),
+    sampleDrawnBy: getDrawnFieldValue(formData, 'sampleDrawnBy'),
+    customerNameAddress: getDrawnFieldValue(formData, 'customerNameAddress'),
+    parameterToBeTested: getDrawnFieldValue(formData, 'parameterToBeTested'),
+    reportDueOn: getDrawnFieldValue(formData, 'reportDueOn'),
+    sampleReceivedBy: getDrawnFieldValue(formData, 'sampleReceivedBy')
+  })
+}
+
+const syncIssueDraftPayload = (form: HTMLFormElement): Record<string, string> => {
+  syncIssueDraftFromAutoFields(form)
+  const draftData = new FormData(form)
+  return {
+    srNo: getIssueFieldValue(draftData, 'srNo'),
+    codeNo: getIssueFieldValue(draftData, 'codeNo'),
+    status: getIssueFieldValue(draftData, 'status'),
+    sampleDescription: getIssueFieldValue(draftData, 'sampleDescription'),
+    parameterToBeTested: getIssueFieldValue(draftData, 'parameterToBeTested'),
+    issuedOn: getIssueFieldValue(draftData, 'issuedOn'),
+    issuedBy: getIssueFieldValue(draftData, 'issuedBy'),
+    issuedTo: getIssueFieldValue(draftData, 'issuedTo'),
+    reportDueOn: getIssueFieldValue(draftData, 'reportDueOn'),
+    receivedBy: getIssueFieldValue(draftData, 'receivedBy'),
+    reportedOn: getIssueFieldValue(draftData, 'reportedOn'),
+    reportedByRemarks: getIssueFieldValue(draftData, 'reportedByRemarks')
+  }
+}
+
+const syncDrawnDraftPayload = (form: HTMLFormElement): Record<string, string> => {
+  syncDrawnDraftFromAutoFields(form)
+  const draftData = new FormData(form)
+  return {
+    srNo: getDrawnFieldValue(draftData, 'srNo'),
+    status: getDrawnFieldValue(draftData, 'status'),
+    sampleDescription: getDrawnFieldValue(draftData, 'sampleDescription'),
+    sampleDrawnOn: getDrawnFieldValue(draftData, 'sampleDrawnOn'),
+    sampleDrawnBy: getDrawnFieldValue(draftData, 'sampleDrawnBy'),
+    customerNameAddress: getDrawnFieldValue(draftData, 'customerNameAddress'),
+    parameterToBeTested: getDrawnFieldValue(draftData, 'parameterToBeTested'),
+    reportDueOn: getDrawnFieldValue(draftData, 'reportDueOn'),
+    sampleReceivedBy: getDrawnFieldValue(draftData, 'sampleReceivedBy')
+  }
+}
+
+const renderIssueDefaultDescriptionMessage = (descriptionValue: string): string =>
+  descriptionValue ? '' : '<p class="draft-note">Select Sample Description to auto-load parameters.</p>'
+
+const renderDrawnDefaultDescriptionMessage = (descriptionValue: string): string =>
+  descriptionValue ? '' : '<p class="draft-note">Select Sample Description to auto-load parameters.</p>'
 
 const toDateValue = (value: string): number => {
   const parsed = Date.parse(value)
@@ -368,41 +918,265 @@ const hasDrawnDuplicate = (record: DrawnRecord, excludeId = ''): string | null =
   return `Duplicate Sr.No. found: ${record.srNo}`
 }
 
-const downloadPdf = (fileName: string, title: string, headers: string[], rows: string[][]): void => {
-  const pdf = new jsPDF({ orientation: 'landscape' })
+const pdfLogoPath = '/ultra-lab-logo.png'
+const ISSUE_PDF_TABLE_WIDTH = 198
+const DRAWN_PDF_TABLE_WIDTH = 184
+const pdfLogoCache = new Map<string, { dataUrl: string; width: number; height: number }>()
+
+const getPdfLogoAsset = async (alpha = 1): Promise<{ dataUrl: string; width: number; height: number }> => {
+  const key = alpha.toFixed(2)
+  const cached = pdfLogoCache.get(key)
+  if (cached) {
+    return cached
+  }
+
+  const image = new Image()
+  image.src = `${pdfLogoPath}?t=${Date.now()}`
+
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve()
+    image.onerror = () => reject(new Error('Logo load failed for PDF.'))
+  })
+
+  const canvas = document.createElement('canvas')
+  canvas.width = image.width
+  canvas.height = image.height
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Logo canvas init failed for PDF.')
+  }
+
+  context.clearRect(0, 0, canvas.width, canvas.height)
+  context.globalAlpha = Math.max(0, Math.min(alpha, 1))
+  context.drawImage(image, 0, 0)
+  const asset = {
+    dataUrl: canvas.toDataURL('image/png'),
+    width: image.width,
+    height: image.height
+  }
+
+  pdfLogoCache.set(key, asset)
+  return asset
+}
+
+const drawPdfHeaderLogo = async (pdf: jsPDF): Promise<void> => {
+  const logo = await getPdfLogoAsset(1)
+  const boxX = 12
+  const boxY = 1
+  const boxWidth = 52
+  const boxHeight = 36
+  const ratio = logo.width / logo.height
+
+  let drawWidth = boxWidth
+  let drawHeight = drawWidth / ratio
+  if (drawHeight > boxHeight) {
+    drawHeight = boxHeight
+    drawWidth = drawHeight * ratio
+  }
+
+  const drawX = boxX + (boxWidth - drawWidth) / 2
+  const drawY = boxY + (boxHeight - drawHeight) / 2
+  pdf.addImage(logo.dataUrl, 'PNG', drawX, drawY, drawWidth, drawHeight)
+}
+
+const drawPdfBottomBackgroundLogo = async (pdf: jsPDF): Promise<void> => {
+  const logo = await getPdfLogoAsset(0.2)
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const targetHeight = 62
+  const targetWidth = targetHeight * (logo.width / logo.height)
+  const drawX = pageWidth / 2 - targetWidth / 2
+  const drawY = pageHeight - targetHeight - 10
+  pdf.addImage(logo.dataUrl, 'PNG', drawX, drawY, targetWidth, targetHeight)
+}
+
+const downloadIssueRegisterPdf = async (records: IssueRecord[]): Promise<void> => {
+  const pdf = new jsPDF({ orientation: 'landscape', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const marginLeft = (pageWidth - ISSUE_PDF_TABLE_WIDTH) / 2
+
+  await drawPdfBottomBackgroundLogo(pdf)
+  await drawPdfHeaderLogo(pdf)
+
+  pdf.setTextColor(20, 20, 20)
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(12)
-  pdf.text(title, 14, 14)
+  pdf.text('ULTRA TESTING & RESEARCH LABORATORY', 148.5, 13, { align: 'center' })
+  pdf.setFontSize(11)
+  pdf.text('SAMPLE ISSUE REGISTER', 148.5, 19, { align: 'center' })
+
+  const headers = [
+    'Sr.No.',
+    'Code No.',
+    'Sample Description',
+    'Parameter to be tested',
+    'Issued On',
+    'Issued By',
+    'Issued To',
+    'Report Due On',
+    'Received By',
+    'Reported On',
+    'ReportedBy/R\nremarks'
+  ]
+
+  const rows = records.map((record) => [
+    record.srNo,
+    record.codeNo,
+    record.sampleDescription,
+    record.parameterToBeTested,
+    record.issuedOn,
+    record.issuedBy,
+    record.issuedTo,
+    record.reportDueOn,
+    record.receivedBy,
+    record.reportedOn,
+    record.reportedByRemarks
+  ])
+
   autoTable(pdf, {
     head: [headers],
     body: rows,
-    startY: 20,
-    styles: { fontSize: 8 }
+    startY: 34,
+    margin: { top: 34, right: marginLeft, bottom: 8, left: marginLeft },
+    tableWidth: ISSUE_PDF_TABLE_WIDTH,
+    theme: 'grid',
+    styles: {
+      font: 'times',
+      fontSize: 7,
+      cellPadding: 1.2,
+      lineColor: [70, 70, 70],
+      lineWidth: 0.1,
+      textColor: [20, 20, 20],
+      valign: 'middle'
+    },
+    headStyles: {
+      font: 'times',
+      fontStyle: 'bold',
+      fillColor: [255, 255, 255],
+      textColor: [20, 20, 20],
+      lineColor: [70, 70, 70],
+      lineWidth: 0.1
+    },
+    columnStyles: {
+      0: { cellWidth: 12 },
+      1: { cellWidth: 14 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 36 },
+      4: { cellWidth: 14 },
+      5: { cellWidth: 13 },
+      6: { cellWidth: 13 },
+      7: { cellWidth: 16 },
+      8: { cellWidth: 14 },
+      9: { cellWidth: 14 },
+      10: { cellWidth: 28 }
+    }
   })
-  pdf.save(fileName)
+
+  pdf.save('issue-register.pdf')
 }
 
-const commitPendingDelete = async (session: Session, pending: PendingDelete): Promise<void> => {
-  const recordId = pending.record.id
-  if (!recordId) {
-    return
-  }
+const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> => {
+  const pdf = new jsPDF({ orientation: 'landscape', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const marginLeft = (pageWidth - DRAWN_PDF_TABLE_WIDTH) / 2
 
-  if (pending.source === 'issue') {
-    await deleteIssueRecordApi(session.token, recordId)
-    return
-  }
+  await drawPdfBottomBackgroundLogo(pdf)
+  await drawPdfHeaderLogo(pdf)
 
-  await deleteDrawnRecordApi(session.token, recordId)
+  pdf.setTextColor(20, 20, 20)
+  pdf.setFont('times', 'bold')
+  pdf.setFontSize(12)
+  pdf.text('ULTRA TESTING & RESEARCH LABORATORY', 148.5, 13, { align: 'center' })
+  pdf.setFontSize(11)
+  pdf.text('SAMPLE RECEIVING REGISTER', 148.5, 19, { align: 'center' })
+
+  const headers = [
+    'Sr.No.',
+    'Sample Description',
+    'Sample Drawn on',
+    'Sample Drawn By',
+    'Customer Name &\nAddress',
+    'Parameter to be\nTested',
+    'Report Due On',
+    'Sample Received\nBy'
+  ]
+
+  const rows = records.map((record) => [
+    record.srNo,
+    record.sampleDescription,
+    record.sampleDrawnOn,
+    record.sampleDrawnBy,
+    record.customerNameAddress,
+    record.parameterToBeTested,
+    record.reportDueOn,
+    record.sampleReceivedBy
+  ])
+
+  autoTable(pdf, {
+    head: [headers],
+    body: rows,
+    startY: 34,
+    margin: { top: 34, right: marginLeft, bottom: 8, left: marginLeft },
+    tableWidth: DRAWN_PDF_TABLE_WIDTH,
+    theme: 'grid',
+    styles: {
+      font: 'times',
+      fontSize: 7.2,
+      cellPadding: 1.2,
+      lineColor: [70, 70, 70],
+      lineWidth: 0.1,
+      textColor: [20, 20, 20],
+      valign: 'middle'
+    },
+    headStyles: {
+      font: 'times',
+      fontStyle: 'bold',
+      fillColor: [255, 255, 255],
+      textColor: [20, 20, 20],
+      lineColor: [70, 70, 70],
+      lineWidth: 0.1
+    },
+    columnStyles: {
+      0: { cellWidth: 12 },
+      1: { cellWidth: 24 },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 18 },
+      4: { cellWidth: 34 },
+      5: { cellWidth: 34 },
+      6: { cellWidth: 18 },
+      7: { cellWidth: 24 }
+    }
+  })
+
+  pdf.save('drawn-sample-register.pdf')
 }
 
-const restorePendingDeleteLocally = (pending: PendingDelete): void => {
-  if (pending.source === 'issue') {
-    issueRecords.splice(pending.index, 0, pending.record as IssueRecord)
-    return
-  }
+const toIssueCreatePayload = (record: IssueRecord): IssueRecord => ({
+  status: getIssueStatus(record),
+  srNo: record.srNo,
+  codeNo: record.codeNo,
+  sampleDescription: record.sampleDescription,
+  parameterToBeTested: record.parameterToBeTested,
+  issuedOn: record.issuedOn,
+  issuedBy: record.issuedBy,
+  issuedTo: record.issuedTo,
+  reportDueOn: record.reportDueOn,
+  receivedBy: record.receivedBy,
+  reportedOn: record.reportedOn,
+  reportedByRemarks: record.reportedByRemarks
+})
 
-  drawnRecords.splice(pending.index, 0, pending.record as DrawnRecord)
-}
+const toDrawnCreatePayload = (record: DrawnRecord): DrawnRecord => ({
+  status: getDrawnStatus(record),
+  srNo: record.srNo,
+  sampleDescription: record.sampleDescription,
+  sampleDrawnOn: record.sampleDrawnOn,
+  sampleDrawnBy: record.sampleDrawnBy,
+  customerNameAddress: record.customerNameAddress,
+  parameterToBeTested: record.parameterToBeTested,
+  reportDueOn: record.reportDueOn,
+  sampleReceivedBy: record.sampleReceivedBy
+})
 
 const resetIssueFilters = (): void => {
   issueSearch = ''
@@ -591,6 +1365,22 @@ const loadRegisters = async (token: string): Promise<void> => {
 
   setIssueRecords(nextIssueRecords)
   setDrawnRecords(nextDrawnRecords)
+}
+
+const loadTestMaster = async (token: string): Promise<void> => {
+  const response = await fetch('/api/test-master', {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+
+  const body = await readJsonSafe<Partial<TestMasterResponse> & { message?: string }>(response)
+
+  if (!response.ok) {
+    throw new Error(body.message ?? 'Failed to load test master.')
+  }
+
+  setTestMaster(Array.isArray(body.tests) ? body.tests : [], Array.isArray(body.parameters) ? body.parameters : [])
 }
 
 const createIssueRecord = async (token: string, record: IssueRecord): Promise<IssueRecord> => {
@@ -963,7 +1753,7 @@ const renderDrawnTable = (canDelete: boolean): string => {
 
 const renderIssueEntryModule = (): string => {
   const editing = issueEditingId ? issueRecords.find((item) => item.id === issueEditingId) : undefined
-  const issueDraft = editing ? {} : readDraft<IssueRecord>(ISSUE_DRAFT_KEY)
+  const { issueDraft, srNoValue, codeNoValue, descriptionValue, parameterValue } = getIssueFormInitialValues(editing)
   const issueStatus = editing
     ? getIssueStatus(editing)
     : normalizeRecordStatus(issueDraft.status, issueDraft.reportedOn ? 'Reported' : 'Pending')
@@ -976,10 +1766,8 @@ const renderIssueEntryModule = (): string => {
         <p class="register-note">Maintain issue, due, and reporting trail for each sample entry.</p>
       </div>
       <form id="issue-form" class="data-form" novalidate>
-        <label class="field-group"><span>Sr.No.</span><input name="srNo" value="${escapeHtml(editing?.srNo ?? issueDraft.srNo ?? '')}" required /></label>
-        <label class="field-group"><span>Code No.</span><input name="codeNo" value="${escapeHtml(editing?.codeNo ?? issueDraft.codeNo ?? '')}" required /></label>
-        <label class="field-group"><span>Sample Description</span><input name="sampleDescription" value="${escapeHtml(editing?.sampleDescription ?? issueDraft.sampleDescription ?? '')}" required /></label>
-        <label class="field-group"><span>Parameter to be tested</span><input name="parameterToBeTested" value="${escapeHtml(editing?.parameterToBeTested ?? issueDraft.parameterToBeTested ?? '')}" required /></label>
+        ${renderIssueAutoFields(srNoValue, codeNoValue, descriptionValue, parameterValue, Boolean(editing))}
+        ${renderIssueDefaultDescriptionMessage(descriptionValue)}
         <label class="field-group"><span>Issued On</span><input name="issuedOn" type="date" value="${escapeHtml(editing?.issuedOn ?? issueDraft.issuedOn ?? '')}" required /></label>
         <label class="field-group"><span>Issued By</span><input name="issuedBy" value="${escapeHtml(editing?.issuedBy ?? issueDraft.issuedBy ?? '')}" required /></label>
         <label class="field-group"><span>Issued To</span><input name="issuedTo" value="${escapeHtml(editing?.issuedTo ?? issueDraft.issuedTo ?? '')}" required /></label>
@@ -999,7 +1787,7 @@ const renderIssueEntryModule = (): string => {
           ${editing ? '<button id="issue-cancel-edit" class="secondary-btn light" type="button">Cancel Edit</button>' : ''}
         </div>
       </form>
-      ${editing ? '' : '<p class="draft-note">Draft auto-save is on.</p>'}
+      ${renderDraftHint(Boolean(editing))}
     </section>
   `
 }
@@ -1030,7 +1818,7 @@ const renderIssueRecordsModule = (): string => {
 
 const renderDrawnEntryModule = (): string => {
   const editing = drawnEditingId ? drawnRecords.find((item) => item.id === drawnEditingId) : undefined
-  const drawnDraft = editing ? {} : readDraft<DrawnRecord>(DRAWN_DRAFT_KEY)
+  const { drawnDraft, srNoValue, descriptionValue, parameterValue } = getDrawnFormInitialValues(editing)
   const drawnStatus = editing ? getDrawnStatus(editing) : normalizeRecordStatus(drawnDraft.status, 'Pending')
 
   return `
@@ -1041,12 +1829,11 @@ const renderDrawnEntryModule = (): string => {
         <p class="register-note">Capture receiving details for drawn samples with due-date tracking.</p>
       </div>
       <form id="drawn-form" class="data-form" novalidate>
-        <label class="field-group"><span>Sr.No.</span><input name="srNo" value="${escapeHtml(editing?.srNo ?? drawnDraft.srNo ?? '')}" required /></label>
-        <label class="field-group"><span>Sample Description</span><input name="sampleDescription" value="${escapeHtml(editing?.sampleDescription ?? drawnDraft.sampleDescription ?? '')}" required /></label>
+        ${renderDrawnAutoFields(srNoValue, descriptionValue, parameterValue, Boolean(editing))}
+        ${renderDrawnDefaultDescriptionMessage(descriptionValue)}
         <label class="field-group"><span>Sample Drawn on</span><input name="sampleDrawnOn" type="date" value="${escapeHtml(editing?.sampleDrawnOn ?? drawnDraft.sampleDrawnOn ?? '')}" required /></label>
         <label class="field-group"><span>Sample Drawn By</span><input name="sampleDrawnBy" value="${escapeHtml(editing?.sampleDrawnBy ?? drawnDraft.sampleDrawnBy ?? '')}" required /></label>
         <label class="field-group"><span>Customer Name & Address</span><input name="customerNameAddress" value="${escapeHtml(editing?.customerNameAddress ?? drawnDraft.customerNameAddress ?? '')}" required /></label>
-        <label class="field-group"><span>Parameter to be Tested</span><input name="parameterToBeTested" value="${escapeHtml(editing?.parameterToBeTested ?? drawnDraft.parameterToBeTested ?? '')}" required /></label>
         <label class="field-group"><span>Status</span>
           <select name="status" required>
             <option value="Pending" ${drawnStatus === 'Pending' ? 'selected' : ''}>Pending</option>
@@ -1061,7 +1848,7 @@ const renderDrawnEntryModule = (): string => {
           ${editing ? '<button id="drawn-cancel-edit" class="secondary-btn light" type="button">Cancel Edit</button>' : ''}
         </div>
       </form>
-      ${editing ? '' : '<p class="draft-note">Draft auto-save is on.</p>'}
+      ${renderDraftHint(Boolean(editing))}
     </section>
   `
 }
@@ -1412,6 +2199,11 @@ const renderLogin = (message = '', routeMode: 'push' | 'replace' | null = null):
       const nextSession: Session = { token: result.token, email: result.user.email, role: result.user.role }
       saveSession(nextSession)
       await loadRegisters(nextSession.token)
+      try {
+        await loadTestMaster(nextSession.token)
+      } catch {
+        setTestMaster([], [])
+      }
       renderDashboard(nextSession, 'issue-entry', 'replace')
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unable to sign in.'
@@ -1474,7 +2266,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
           <h2>${getModuleLabel(selectedModule)}</h2>
         </div>
         ${renderActivityCards()}
-        ${pendingDelete ? `<div class="undo-banner"><span>Entry moved to recycle queue. Auto-delete in 8s.</span><button id="undo-delete-btn" class="secondary-btn light" type="button">Undo Delete</button></div>` : ''}
+        ${pendingDelete ? `<div class="undo-banner"><span>Entry deleted. Undo available for 8s.</span><button id="undo-delete-btn" class="secondary-btn light" type="button">Undo Delete</button></div>` : ''}
         ${content}
       </section>
     </main>
@@ -1598,27 +2390,13 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     downloadCsv('issue-register.csv', ['Sr.No.', 'Code No.', 'Status', 'Sample Description', 'Parameter to be tested', 'Issued On', 'Issued By', 'Issued To', 'Report Due On', 'Received By', 'Reported On', 'ReportedBy/Remarks'], rows)
   })
 
-  issueExportPdfButton?.addEventListener('click', () => {
-    const rows = getFilteredIssueRecords().map((record) => [
-      record.srNo,
-      record.codeNo,
-      getIssueStatus(record),
-      record.sampleDescription,
-      record.parameterToBeTested,
-      record.issuedOn,
-      record.issuedBy,
-      record.issuedTo,
-      record.reportDueOn,
-      record.receivedBy,
-      record.reportedOn,
-      record.reportedByRemarks
-    ])
-    downloadPdf(
-      'issue-register.pdf',
-      'Sample Issue Register',
-      ['Sr.No.', 'Code No.', 'Status', 'Sample Description', 'Parameter', 'Issued On', 'Issued By', 'Issued To', 'Report Due On', 'Received By', 'Reported On', 'Remarks'],
-      rows
-    )
+  issueExportPdfButton?.addEventListener('click', async () => {
+    try {
+      await downloadIssueRegisterPdf(getFilteredIssueRecords())
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to export issue PDF.'
+      window.alert(errorMessage)
+    }
   })
 
   issueCancelEditButton?.addEventListener('click', () => {
@@ -1648,42 +2426,25 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
       try {
         const index = issueRecords.findIndex((record) => record.id === recordId)
         if (index >= 0) {
-          const removed = issueRecords.splice(index, 1)[0]
+          const removed = issueRecords[index]
 
-          if (removed) {
-            if (pendingDelete) {
-              clearTimeout(pendingDelete.timeoutId)
-              void commitPendingDelete(session, pendingDelete)
+          await deleteIssueRecordApi(session.token, recordId)
+          issueRecords.splice(index, 1)
+
+          if (pendingDelete) {
+            clearTimeout(pendingDelete.timeoutId)
+            pendingDelete = null
+          }
+
+          pendingDelete = {
+            source: 'issue',
+            module: 'issue-records',
+            index,
+            record: removed,
+            timeoutId: setTimeout(() => {
               pendingDelete = null
-            }
-
-            const scheduledDelete: PendingDelete = {
-              source: 'issue',
-              module: 'issue-records',
-              index,
-              record: removed,
-              timeoutId: setTimeout(() => {
-                if (!pendingDelete) {
-                  return
-                }
-
-                const toCommit = pendingDelete
-                pendingDelete = null
-                void (async () => {
-                  try {
-                    await commitPendingDelete(session, toCommit)
-                  } catch (error) {
-                    restorePendingDeleteLocally(toCommit)
-                    const errorMessage = error instanceof Error ? error.message : 'Unable to delete issue entry.'
-                    window.alert(errorMessage)
-                  } finally {
-                    renderDashboard(session, toCommit.module)
-                  }
-                })()
-              }, SOFT_DELETE_TIMEOUT_MS)
-            }
-
-            pendingDelete = scheduledDelete
+              renderDashboard(session, 'issue-records')
+            }, SOFT_DELETE_TIMEOUT_MS)
           }
         }
 
@@ -1749,24 +2510,13 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     downloadCsv('drawn-sample-register.csv', ['Sr.No.', 'Status', 'Sample Description', 'Sample Drawn on', 'Sample Drawn By', 'Customer Name & Address', 'Parameter to be Tested', 'Report Due On', 'Sample Received By'], rows)
   })
 
-  drawnExportPdfButton?.addEventListener('click', () => {
-    const rows = getFilteredDrawnRecords().map((record) => [
-      record.srNo,
-      getDrawnStatus(record),
-      record.sampleDescription,
-      record.sampleDrawnOn,
-      record.sampleDrawnBy,
-      record.customerNameAddress,
-      record.parameterToBeTested,
-      record.reportDueOn,
-      record.sampleReceivedBy
-    ])
-    downloadPdf(
-      'drawn-sample-register.pdf',
-      'Sample Receiving Register',
-      ['Sr.No.', 'Status', 'Sample Description', 'Sample Drawn On', 'Sample Drawn By', 'Customer', 'Parameter', 'Report Due On', 'Received By'],
-      rows
-    )
+  drawnExportPdfButton?.addEventListener('click', async () => {
+    try {
+      await downloadDrawnRegisterPdf(getFilteredDrawnRecords())
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to export receiving PDF.'
+      window.alert(errorMessage)
+    }
   })
 
   drawnCancelEditButton?.addEventListener('click', () => {
@@ -1796,42 +2546,25 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
       try {
         const index = drawnRecords.findIndex((record) => record.id === recordId)
         if (index >= 0) {
-          const removed = drawnRecords.splice(index, 1)[0]
+          const removed = drawnRecords[index]
 
-          if (removed) {
-            if (pendingDelete) {
-              clearTimeout(pendingDelete.timeoutId)
-              void commitPendingDelete(session, pendingDelete)
+          await deleteDrawnRecordApi(session.token, recordId)
+          drawnRecords.splice(index, 1)
+
+          if (pendingDelete) {
+            clearTimeout(pendingDelete.timeoutId)
+            pendingDelete = null
+          }
+
+          pendingDelete = {
+            source: 'drawn',
+            module: 'drawn-records',
+            index,
+            record: removed,
+            timeoutId: setTimeout(() => {
               pendingDelete = null
-            }
-
-            const scheduledDelete: PendingDelete = {
-              source: 'drawn',
-              module: 'drawn-records',
-              index,
-              record: removed,
-              timeoutId: setTimeout(() => {
-                if (!pendingDelete) {
-                  return
-                }
-
-                const toCommit = pendingDelete
-                pendingDelete = null
-                void (async () => {
-                  try {
-                    await commitPendingDelete(session, toCommit)
-                  } catch (error) {
-                    restorePendingDeleteLocally(toCommit)
-                    const errorMessage = error instanceof Error ? error.message : 'Unable to delete drawn entry.'
-                    window.alert(errorMessage)
-                  } finally {
-                    renderDashboard(session, toCommit.module)
-                  }
-                })()
-              }, SOFT_DELETE_TIMEOUT_MS)
-            }
-
-            pendingDelete = scheduledDelete
+              renderDashboard(session, 'drawn-records')
+            }, SOFT_DELETE_TIMEOUT_MS)
           }
         }
 
@@ -2000,7 +2733,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
     try {
       await restoreBackup(session.token, fileName)
-      await Promise.all([loadRegisters(session.token), loadAdminPanelData(session.token)])
+      await Promise.all([loadRegisters(session.token), loadAdminPanelData(session.token), loadTestMaster(session.token)])
       adminMessage = `Backup restored: ${fileName}`
       adminMessageState = ''
       renderDashboard(session, 'admin-panel')
@@ -2012,23 +2745,11 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   })
 
   if (issueForm) {
+    initializeIssueAutoUi(issueForm, Boolean(issueEditingId))
+
     if (!issueEditingId) {
       const syncIssueDraft = (): void => {
-        const draftData = new FormData(issueForm)
-        const payload: Record<string, string> = {
-          srNo: String(draftData.get('srNo') ?? '').trim(),
-          codeNo: String(draftData.get('codeNo') ?? '').trim(),
-          status: String(draftData.get('status') ?? '').trim(),
-          sampleDescription: String(draftData.get('sampleDescription') ?? '').trim(),
-          parameterToBeTested: String(draftData.get('parameterToBeTested') ?? '').trim(),
-          issuedOn: String(draftData.get('issuedOn') ?? '').trim(),
-          issuedBy: String(draftData.get('issuedBy') ?? '').trim(),
-          issuedTo: String(draftData.get('issuedTo') ?? '').trim(),
-          reportDueOn: String(draftData.get('reportDueOn') ?? '').trim(),
-          receivedBy: String(draftData.get('receivedBy') ?? '').trim(),
-          reportedOn: String(draftData.get('reportedOn') ?? '').trim(),
-          reportedByRemarks: String(draftData.get('reportedByRemarks') ?? '').trim()
-        }
+        const payload = syncIssueDraftPayload(issueForm)
 
         saveDraft(ISSUE_DRAFT_KEY, payload)
       }
@@ -2040,21 +2761,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     issueForm.addEventListener('submit', async (event) => {
       event.preventDefault()
       const formData = new FormData(issueForm)
-
-      const payload: IssueRecord = {
-        srNo: String(formData.get('srNo') ?? '').trim(),
-        codeNo: String(formData.get('codeNo') ?? '').trim(),
-        status: normalizeRecordStatus(formData.get('status')),
-        sampleDescription: String(formData.get('sampleDescription') ?? '').trim(),
-        parameterToBeTested: String(formData.get('parameterToBeTested') ?? '').trim(),
-        issuedOn: String(formData.get('issuedOn') ?? '').trim(),
-        issuedBy: String(formData.get('issuedBy') ?? '').trim(),
-        issuedTo: String(formData.get('issuedTo') ?? '').trim(),
-        reportDueOn: String(formData.get('reportDueOn') ?? '').trim(),
-        receivedBy: String(formData.get('receivedBy') ?? '').trim(),
-        reportedOn: String(formData.get('reportedOn') ?? '').trim(),
-        reportedByRemarks: String(formData.get('reportedByRemarks') ?? '').trim()
-      }
+      const payload = readIssuePayloadFromForm(formData)
 
       if (
         !payload.srNo ||
@@ -2110,20 +2817,11 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   }
 
   if (drawnForm) {
+    initializeDrawnAutoUi(drawnForm, Boolean(drawnEditingId))
+
     if (!drawnEditingId) {
       const syncDrawnDraft = (): void => {
-        const draftData = new FormData(drawnForm)
-        const payload: Record<string, string> = {
-          srNo: String(draftData.get('srNo') ?? '').trim(),
-          status: String(draftData.get('status') ?? '').trim(),
-          sampleDescription: String(draftData.get('sampleDescription') ?? '').trim(),
-          sampleDrawnOn: String(draftData.get('sampleDrawnOn') ?? '').trim(),
-          sampleDrawnBy: String(draftData.get('sampleDrawnBy') ?? '').trim(),
-          customerNameAddress: String(draftData.get('customerNameAddress') ?? '').trim(),
-          parameterToBeTested: String(draftData.get('parameterToBeTested') ?? '').trim(),
-          reportDueOn: String(draftData.get('reportDueOn') ?? '').trim(),
-          sampleReceivedBy: String(draftData.get('sampleReceivedBy') ?? '').trim()
-        }
+        const payload = syncDrawnDraftPayload(drawnForm)
 
         saveDraft(DRAWN_DRAFT_KEY, payload)
       }
@@ -2135,18 +2833,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     drawnForm.addEventListener('submit', async (event) => {
       event.preventDefault()
       const formData = new FormData(drawnForm)
-
-      const payload: DrawnRecord = {
-        srNo: String(formData.get('srNo') ?? '').trim(),
-        status: normalizeRecordStatus(formData.get('status')),
-        sampleDescription: String(formData.get('sampleDescription') ?? '').trim(),
-        sampleDrawnOn: String(formData.get('sampleDrawnOn') ?? '').trim(),
-        sampleDrawnBy: String(formData.get('sampleDrawnBy') ?? '').trim(),
-        customerNameAddress: String(formData.get('customerNameAddress') ?? '').trim(),
-        parameterToBeTested: String(formData.get('parameterToBeTested') ?? '').trim(),
-        reportDueOn: String(formData.get('reportDueOn') ?? '').trim(),
-        sampleReceivedBy: String(formData.get('sampleReceivedBy') ?? '').trim()
-      }
+      const payload = readDrawnPayloadFromForm(formData)
 
       if (
         !payload.srNo ||
@@ -2190,16 +2877,30 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     })
   }
 
-  undoDeleteButton?.addEventListener('click', () => {
+  undoDeleteButton?.addEventListener('click', async () => {
     if (!pendingDelete) {
       return
     }
 
-    clearTimeout(pendingDelete.timeoutId)
-    restorePendingDeleteLocally(pendingDelete)
-    const targetModule = pendingDelete.module
+    const toRestore = pendingDelete
+    clearTimeout(toRestore.timeoutId)
     pendingDelete = null
-    renderDashboard(session, targetModule)
+
+    try {
+      if (toRestore.source === 'issue') {
+        const restored = await createIssueRecord(session.token, toIssueCreatePayload(toRestore.record as IssueRecord))
+        issueRecords.splice(Math.min(toRestore.index, issueRecords.length), 0, restored)
+      } else {
+        const restored = await createDrawnRecord(session.token, toDrawnCreatePayload(toRestore.record as DrawnRecord))
+        drawnRecords.splice(Math.min(toRestore.index, drawnRecords.length), 0, restored)
+      }
+
+      renderDashboard(session, toRestore.module)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to restore deleted entry.'
+      window.alert(errorMessage)
+      renderDashboard(session, toRestore.module)
+    }
   })
 
   logoutBtn.addEventListener('click', () => {
@@ -2231,6 +2932,11 @@ const initApp = async (): Promise<void> => {
 
     saveSession(nextSession)
     await loadRegisters(nextSession.token)
+    try {
+      await loadTestMaster(nextSession.token)
+    } catch {
+      setTestMaster([], [])
+    }
     const initialView = getHashView()
 
     if (initialView === 'login') {

@@ -1,0 +1,150 @@
+{
+  "tests": [
+    {
+      "id": "t1",
+      "testName": "Ambient Air Quality Monitoring & Analysis (Extended)",
+      "description": "Ambient Air Quality Monitoring & Analysis",
+      "displayOrder": 1
+    },
+    {
+      "id": "t2",
+      "testName": "Ambient Air Quality Monitoring & Analysis (Basic)",
+      "description": "Ambient Air Quality Monitoring & Analysis (Basic)",
+      "displayOrder": 2
+    },
+    {
+      "id": "t3",
+      "testName": "Indoor Air",
+      "description": "Indoor Air",
+      "displayOrder": 3
+    },
+    {
+      "id": "t4",
+      "testName": "Ambient Noise",
+      "description": "Ambient Noise",
+      "displayOrder": 4
+    },
+    {
+      "id": "t5",
+      "testName": "Indoor Noise",
+      "description": "Indoor Noise",
+      "displayOrder": 5
+    },
+    {
+      "id": "t6",
+      "testName": "DG Stack Emission",
+      "description": "DG Stack Emission",
+      "displayOrder": 6
+    },
+    {
+      "id": "t7",
+      "testName": "DG Noise",
+      "description": "DG Noise",
+      "displayOrder": 7
+    },
+    {
+      "id": "t8",
+      "testName": "STP / ETP / Waste Water",
+      "description": "STP / ETP / Waste Water",
+      "displayOrder": 8
+    },
+    {
+      "id": "t9",
+      "testName": "Drinking Water Testing",
+      "description": "Drinking Water Testing",
+      "displayOrder": 9
+    },
+    {
+      "id": "t10",
+      "testName": "Ground Water Quality",
+      "description": "Ground Water Quality",
+      "displayOrder": 10
+    },
+    {
+      "id": "t11",
+      "testName": "Surface Water Bodies",
+      "description": "Surface Water Bodies",
+      "displayOrder": 11
+    },
+    {
+      "id": "t12",
+      "testName": "Soil Quality Test",
+      "description": "Soil Quality Test",
+      "displayOrder": 12
+    }
+  ],
+  "parameters": [
+    {
+      "id": "p1",
+      "testId": "t1",
+      "parameterName": "PM10, PM2.5, SO2, NO2, CO, Ammonia, Arsenic, Benzene, Lead, Nickel, Benzo(a)pyrene",
+      "displayOrder": 1
+    },
+    {
+      "id": "p2",
+      "testId": "t1",
+      "parameterName": "PM10, PM2.5, SO2, NO2, CO",
+      "displayOrder": 1
+    },
+    {
+      "id": "p3",
+      "testId": "t3",
+      "parameterName": "PM, SO2, NO2, CO",
+      "displayOrder": 1
+    },
+    {
+      "id": "p4",
+      "testId": "t4",
+      "parameterName": "Leq",
+      "displayOrder": 2
+    },
+    {
+      "id": "p5",
+      "testId": "t5",
+      "parameterName": "Leq",
+      "displayOrder": 1
+    },
+    {
+      "id": "p6",
+      "testId": "t6",
+      "parameterName": "PM, SOx, NOx, CO",
+      "displayOrder": 1
+    },
+    {
+      "id": "p7",
+      "testId": "t7",
+      "parameterName": "Leq",
+      "displayOrder": 1
+    },
+    {
+      "id": "p8",
+      "testId": "t8",
+      "parameterName": "pH, COD, BOD, TSS, Oil & Grease",
+      "displayOrder": 1
+    },
+    {
+      "id": "p9",
+      "testId": "t9",
+      "parameterName": "pH, Colour, Odour, Taste, Turbidity, TDS, Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate",
+      "displayOrder": 1
+    },
+    {
+      "id": "p10",
+      "testId": "t10",
+      "parameterName": "pH, Value, Colour, Odour, Taste, Turbidity, TDS, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)",
+      "displayOrder": 1
+    },
+    {
+      "id": "p11",
+      "testId": "t11",
+      "parameterName": "pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic",
+      "displayOrder": 1
+    },
+    {
+      "id": "p12",
+      "testId": "t12",
+      "parameterName": "Texture, Sand %, Clay %, Moisture %, Silt %, pH, Electrical Conductivity, Potassium, Sodium, Calcium, Magnesium, Sodium Absorption Ratio, Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Available Phosphorus, Organic Matter, Porosity",
+      "displayOrder": 1
+    }
+  ]
+}

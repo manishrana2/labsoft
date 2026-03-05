@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Ultratest Laboratory logo">
+  <defs>
+    <linearGradient id="flaskGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2b2f75"/>
+      <stop offset="100%" stop-color="#33a3b2"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(85 65)">
+    <path d="M180 25h95v56h46v54h-20l95 95a72 72 0 0 1 20 50v120H44V280a72 72 0 0 1 20-50l95-95h-20V81h41z" fill="url(#flaskGrad)"/>
+
+    <rect x="316" y="152" width="38" height="38" fill="#2e7f9e"/>
+    <rect x="356" y="112" width="38" height="38" fill="#3f94b1"/>
+    <rect x="356" y="192" width="38" height="38" fill="#4ca9c1"/>
+    <rect x="396" y="152" width="38" height="38" fill="#3a8da9"/>
+    <rect x="396" y="232" width="38" height="38" fill="#56b6cb"/>
+
+    <text x="44" y="472" font-family="Arial, Helvetica, sans-serif" font-size="38" fill="#555d69" letter-spacing="0.6">ULTRATEST</text>
+    <text x="228" y="472" font-family="Arial, Helvetica, sans-serif" font-size="38" fill="#6ea8cb" letter-spacing="0.6">LABORATORY</text>
+  </g>
+</svg>
