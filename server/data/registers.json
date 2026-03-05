@@ -17,19 +17,5 @@
       "status": "Reported"
     }
   ],
-  "drawnRecords": [
-    {
-      "srNo": "78",
-      "status": "Pending",
-      "sampleDescription": "hv",
-      "sampleDrawnOn": "2026-09-08",
-      "sampleDrawnBy": "narendra modi",
-      "customerNameAddress": "jalebi mars",
-      "parameterToBeTested": "87",
-      "reportDueOn": "2026-04-06",
-      "sampleReceivedBy": "rahul gandhi",
-      "id": "drw_bb109c07-72cd-4b6b-81ea-834450f6a3c5",
-      "createdAt": "2026-03-05T06:48:58.569Z"
-    }
-  ]
+  "drawnRecords": []
 }

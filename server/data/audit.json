@@ -1,5 +1,37 @@
 [
   {
+    "id": "aud_445a80ed-404e-487b-9a03-31b3433318d1",
+    "actor": "admin@labsoft.dev",
+    "action": "LOGIN_SUCCESS",
+    "target": "admin@labsoft.dev",
+    "details": "Role: admin",
+    "createdAt": "2026-03-05T18:11:31.316Z"
+  },
+  {
+    "id": "aud_2902e97b-1c0e-427a-945b-a1b4a3fb5e47",
+    "actor": "admin@labsoft.dev",
+    "action": "LOGIN_SUCCESS",
+    "target": "admin@labsoft.dev",
+    "details": "Role: admin",
+    "createdAt": "2026-03-05T17:08:23.495Z"
+  },
+  {
+    "id": "aud_1d3b98ab-4de9-4ecc-b921-5df07ca5109b",
+    "actor": "admin@labsoft.dev",
+    "action": "DRAWN_DELETE",
+    "target": "drw_bb109c07-72cd-4b6b-81ea-834450f6a3c5",
+    "details": "Drawn record deleted",
+    "createdAt": "2026-03-05T17:02:33.672Z"
+  },
+  {
+    "id": "aud_20f72f2a-9f4a-442d-96bc-c7ffc286e235",
+    "actor": "admin@labsoft.dev",
+    "action": "LOGIN_SUCCESS",
+    "target": "admin@labsoft.dev",
+    "details": "Role: admin",
+    "createdAt": "2026-03-05T16:05:48.401Z"
+  },
+  {
     "id": "aud_c897674a-d5c8-4a6c-a4b5-43ba74c7887f",
     "actor": "admin@labsoft.dev",
     "action": "USER_PASSWORD_RESET",
