@@ -1,0 +1,18 @@
+[
+  {
+    "id": "u_admin",
+    "email": "admin@labsoft.dev",
+    "role": "admin",
+    "isActive": true,
+    "passwordHash": "$2b$10$7rj/FQwnDUZAiNyrzzs9V.orL1TGFkAt1lUUplehwBWEBiq02IlbO",
+    "createdAt": "2026-03-05T00:00:00.000Z"
+  },
+  {
+    "id": "u_staff_gopal",
+    "email": "gopal@gmail.com",
+    "role": "staff",
+    "isActive": true,
+    "passwordHash": "$2b$10$xGDiGczYnk7zi25l.xEHuuv1qcdi1OpGoQ2vz70FqARQXPodJ8bmy",
+    "createdAt": "2026-03-05T00:00:00.000Z"
+  }
+]

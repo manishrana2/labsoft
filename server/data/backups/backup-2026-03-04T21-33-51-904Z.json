@@ -1,0 +1,132 @@
+{
+  "createdAt": "2026-03-04T21:33:51.904Z",
+  "createdBy": "admin@labsoft.dev",
+  "users": [
+    {
+      "id": "u_admin",
+      "email": "admin@labsoft.dev",
+      "passwordHash": "$2b$10$7rj/FQwnDUZAiNyrzzs9V.orL1TGFkAt1lUUplehwBWEBiq02IlbO",
+      "createdAt": "2026-03-04T19:46:30.783Z",
+      "role": "admin",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_01",
+      "email": "manishrana82184@gmail.com",
+      "passwordHash": "$2b$10$CcLS1FZrGhVzSl5iG98Koe/F7XG1i04pHqIknq0XStYOTS7zyitci",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_02",
+      "email": "staff02@labsoft.local",
+      "passwordHash": "$2b$10$uKGN1uv9EIiyP75JIwvw.OYtkJIvUTXBjMR6lsLkHXZHRJQabewIO",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_03",
+      "email": "staff03@labsoft.local",
+      "passwordHash": "$2b$10$UY2yqo1U/Doaxniv6A1V0OZc.GqNCDnk5LiJR4bFYKRJVTV0D9gEi",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_04",
+      "email": "staff04@labsoft.local",
+      "passwordHash": "$2b$10$fPnFuQf1JDQP/AUNGkNAmeUHW1q/ENU6ieOLmU.oKEhTAXhz.Ixoa",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_05",
+      "email": "staff05@labsoft.local",
+      "passwordHash": "$2b$10$Wc17bcXXRDl1hOp1SFZGQ.BtWQLJEzPOSSVM1CXM4HaMohQCnYkuK",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_06",
+      "email": "staff06@labsoft.local",
+      "passwordHash": "$2b$10$NFJIoev6gtSejZnJa16PYOCCC1smtCVHFdXFXbHfYHCik5E7tpzFW",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_07",
+      "email": "staff07@labsoft.local",
+      "passwordHash": "$2b$10$6DancPaHSI6kCP0xlBqF5OYs0ZRtx0E0zmjlWt1PV/dQfmukIMhTi",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_08",
+      "email": "staff08@labsoft.local",
+      "passwordHash": "$2b$10$G473UcOkxU1Cui8s0hjHsOMAFPfCtZaZT12Fjo8.M0qrm2h.NxaiG",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_09",
+      "email": "staff09@labsoft.local",
+      "passwordHash": "$2b$10$41WIMzmbn8XqHYHqHP9YAOw2IAbMCIQ5AF1yjme3siwQhhG9r7EAu",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    },
+    {
+      "id": "u_staff_10",
+      "email": "staff10@labsoft.local",
+      "passwordHash": "$2b$10$u1y1ls0lMMhV4Aa/FUFi.OMC59UpYNJ3REFdPmLsge1BabEiwa6Vq",
+      "createdAt": "2026-03-05T00:00:00.000Z",
+      "role": "staff",
+      "isActive": true
+    }
+  ],
+  "registers": {
+    "issueRecords": [
+      {
+        "srNo": "1",
+        "codeNo": "345674",
+        "sampleDescription": "water",
+        "parameterToBeTested": "ph",
+        "issuedOn": "2024-12-09",
+        "issuedBy": "rahul gandhi",
+        "issuedTo": "narendra",
+        "reportDueOn": "2025-05-04",
+        "receivedBy": "yogi",
+        "reportedOn": "2026-12-08",
+        "reportedByRemarks": "lab",
+        "id": "iss_e1d55abd-a337-4838-9858-5b96e4fe77a0",
+        "createdAt": "2026-03-04T20:51:15.975Z"
+      }
+    ],
+    "drawnRecords": []
+  },
+  "audit": [
+    {
+      "id": "aud_60c0031e-d83e-4d30-bd6e-9ffef968714c",
+      "actor": "admin@labsoft.dev",
+      "action": "LOGIN_SUCCESS",
+      "target": "admin@labsoft.dev",
+      "details": "Role: admin",
+      "createdAt": "2026-03-04T21:33:51.871Z"
+    },
+    {
+      "id": "aud_214abddf-bc68-49c4-b826-241096384842",
+      "actor": "admin@labsoft.dev",
+      "action": "LOGIN_SUCCESS",
+      "target": "admin@labsoft.dev",
+      "details": "Role: admin",
+      "createdAt": "2026-03-04T21:33:41.579Z"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+- [x] Verify that the copilot-instructions.md file in the .github directory is created.
+- [x] Clarify Project Requirements (defaulted to a Hello World setup because no stack was specified).
+- [x] Scaffold the Project.
+- [x] Customize the Project (skipped by design for Hello World).
+- [x] Install Required Extensions (no required extensions were provided by setup info).
+- [x] Compile the Project.
+- [x] Create and Run Task.
+- [x] Launch the Project (debug mode started).
+- [x] Ensure Documentation is Complete.
+- Work through each checklist item systematically.
+- Keep communication concise and focused.
+- Follow development best practices.

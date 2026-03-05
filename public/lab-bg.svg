@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" role="img" aria-label="Ultratest Laboratory background">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e7edf5"/>
+      <stop offset="100%" stop-color="#d3dde8"/>
+    </linearGradient>
+    <linearGradient id="flask" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2f3c86"/>
+      <stop offset="100%" stop-color="#35a9bb"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="1200" fill="url(#bg)"/>
+
+  <g transform="translate(220 130)">
+    <path d="M230 95h120v75h64v90h-26l175 174a110 110 0 0 1 31 78v278H60V523a111 111 0 0 1 31-78L266 270h-36v-90h0V95z" fill="url(#flask)" opacity="0.95"/>
+
+    <rect x="490" y="320" width="66" height="66" fill="#2f7399"/>
+    <rect x="560" y="250" width="66" height="66" fill="#3b8aab"/>
+    <rect x="560" y="390" width="66" height="66" fill="#3d97b5"/>
+    <rect x="630" y="320" width="66" height="66" fill="#317c9f"/>
+    <rect x="630" y="460" width="66" height="66" fill="#40a5be"/>
+    <rect x="700" y="390" width="66" height="66" fill="#2f7399"/>
+    <rect x="700" y="530" width="66" height="66" fill="#3d97b5"/>
+
+    <text x="60" y="860" font-family="Inter, Arial, sans-serif" font-size="54" fill="#566274" letter-spacing="2">ULTRATEST </text>
+    <text x="420" y="860" font-family="Inter, Arial, sans-serif" font-size="54" fill="#5f9bc4" letter-spacing="2">LABORATORY</text>
+  </g>
+</svg>

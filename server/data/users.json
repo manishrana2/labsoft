@@ -1,0 +1,18 @@
+[
+  {
+    "id": "u_772891a9-2c03-4ff5-a0e6-0fa4421fd4b3",
+    "email": "gopal@gmail.com",
+    "role": "staff",
+    "isActive": true,
+    "passwordHash": "$2b$10$xGDiGczYnk7zi25l.xEHuuv1qcdi1OpGoQ2vz70FqARQXPodJ8bmy",
+    "createdAt": "2026-03-04T21:54:38.038Z"
+  },
+  {
+    "id": "u_admin",
+    "email": "admin@labsoft.dev",
+    "passwordHash": "$2b$10$qHrCVpkmshAMHon1pE5tguJPk5DN4xG1A4RfHTcZiAyZCNsfe/QuO",
+    "createdAt": "2026-03-04T19:46:30.783Z",
+    "role": "admin",
+    "isActive": true
+  }
+]

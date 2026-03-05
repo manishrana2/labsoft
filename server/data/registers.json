@@ -1,0 +1,35 @@
+{
+  "issueRecords": [
+    {
+      "srNo": "1",
+      "codeNo": "345674",
+      "sampleDescription": "water",
+      "parameterToBeTested": "ph",
+      "issuedOn": "2024-12-09",
+      "issuedBy": "rahul gandhi",
+      "issuedTo": "narendra",
+      "reportDueOn": "2025-05-04",
+      "receivedBy": "yogi",
+      "reportedOn": "2026-12-08",
+      "reportedByRemarks": "lab",
+      "id": "iss_e1d55abd-a337-4838-9858-5b96e4fe77a0",
+      "createdAt": "2026-03-04T20:51:15.975Z",
+      "status": "Reported"
+    }
+  ],
+  "drawnRecords": [
+    {
+      "srNo": "78",
+      "status": "Pending",
+      "sampleDescription": "hv",
+      "sampleDrawnOn": "2026-09-08",
+      "sampleDrawnBy": "narendra modi",
+      "customerNameAddress": "jalebi mars",
+      "parameterToBeTested": "87",
+      "reportDueOn": "2026-04-06",
+      "sampleReceivedBy": "rahul gandhi",
+      "id": "drw_bb109c07-72cd-4b6b-81ea-834450f6a3c5",
+      "createdAt": "2026-03-05T06:48:58.569Z"
+    }
+  ]
+}

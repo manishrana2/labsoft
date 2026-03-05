@@ -1,0 +1,28 @@
+{
+  "name": "labsoft",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": "node server/server.js",
+    "start": "node server/server.js",
+    "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
+    "share:demo": "concurrently \"npm run dev:full\" \"lt --port 5173\"",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "localtunnel": "^2.0.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.7"
+  }
+}
