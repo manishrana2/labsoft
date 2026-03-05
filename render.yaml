@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: labsoft
+    name: manishrana2-labsoft
     env: node
     plan: free
     buildCommand: npm ci && npm run build
