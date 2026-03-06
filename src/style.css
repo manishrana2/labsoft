@@ -369,6 +369,18 @@ input:focus {
   margin-bottom: 0.65rem;
 }
 
+.toolbar-filter {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.toolbar-filter select {
+  font-size: 0.92rem;
+}
+
 .draft-note {
   margin: 0.55rem 0 0;
   font-size: 0.8rem;
@@ -385,6 +397,10 @@ input:focus {
   display: grid;
   gap: 0.28rem;
   margin: 0;
+}
+
+.field-group.hidden {
+  display: none;
 }
 
 .field-group span {

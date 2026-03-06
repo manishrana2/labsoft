@@ -44,33 +44,57 @@
     },
     {
       "id": "t8",
-      "testName": "STP / ETP / Waste Water",
-      "description": "STP / ETP / Waste Water",
+      "testName": "ETP Inlet",
+      "description": "ETP Inlet",
       "displayOrder": 8
+    },
+    {
+      "id": "t8b",
+      "testName": "ETP Outlet",
+      "description": "ETP Outlet",
+      "displayOrder": 9
+    },
+    {
+      "id": "t8c",
+      "testName": "STP Inlet",
+      "description": "STP Inlet",
+      "displayOrder": 10
+    },
+    {
+      "id": "t8d",
+      "testName": "STP Outlet",
+      "description": "STP Outlet",
+      "displayOrder": 11
+    },
+    {
+      "id": "t8e",
+      "testName": "Waste Water",
+      "description": "Waste Water",
+      "displayOrder": 12
     },
     {
       "id": "t9",
       "testName": "Drinking Water Testing",
       "description": "Drinking Water Testing",
-      "displayOrder": 9
+      "displayOrder": 13
     },
     {
       "id": "t10",
       "testName": "Ground Water Quality",
       "description": "Ground Water Quality",
-      "displayOrder": 10
+      "displayOrder": 14
     },
     {
       "id": "t11",
       "testName": "Surface Water Bodies",
       "description": "Surface Water Bodies",
-      "displayOrder": 11
+      "displayOrder": 15
     },
     {
       "id": "t12",
       "testName": "Soil Quality Test",
       "description": "Soil Quality Test",
-      "displayOrder": 12
+      "displayOrder": 16
     }
   ],
   "parameters": [
@@ -119,6 +143,30 @@
     {
       "id": "p8",
       "testId": "t8",
+      "parameterName": "pH, COD, BOD, TSS, Oil & Grease",
+      "displayOrder": 1
+    },
+    {
+      "id": "p8b",
+      "testId": "t8b",
+      "parameterName": "pH, COD, BOD, TSS, Oil & Grease",
+      "displayOrder": 1
+    },
+    {
+      "id": "p8c",
+      "testId": "t8c",
+      "parameterName": "pH, COD, BOD, TSS, Oil & Grease",
+      "displayOrder": 1
+    },
+    {
+      "id": "p8d",
+      "testId": "t8d",
+      "parameterName": "pH, COD, BOD, TSS, Oil & Grease",
+      "displayOrder": 1
+    },
+    {
+      "id": "p8e",
+      "testId": "t8e",
       "parameterName": "pH, COD, BOD, TSS, Oil & Grease",
       "displayOrder": 1
     },

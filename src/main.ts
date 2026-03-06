@@ -105,11 +105,15 @@ const FALLBACK_TESTS: TestMasterTest[] = [
   { id: 't5', testName: 'Indoor Noise', description: 'Indoor Noise', displayOrder: 5 },
   { id: 't6', testName: 'DG Stack Emission', description: 'DG Stack Emission', displayOrder: 6 },
   { id: 't7', testName: 'DG Noise', description: 'DG Noise', displayOrder: 7 },
-  { id: 't8', testName: 'STP / ETP / Waste Water', description: 'STP / ETP / Waste Water', displayOrder: 8 },
-  { id: 't9', testName: 'Drinking Water Testing', description: 'Drinking Water Testing', displayOrder: 9 },
-  { id: 't10', testName: 'Ground Water Quality', description: 'Ground Water Quality', displayOrder: 10 },
-  { id: 't11', testName: 'Surface Water Bodies', description: 'Surface Water Bodies', displayOrder: 11 },
-  { id: 't12', testName: 'Soil Quality Test', description: 'Soil Quality Test', displayOrder: 12 }
+  { id: 't8', testName: 'ETP Inlet', description: 'ETP Inlet', displayOrder: 8 },
+  { id: 't8b', testName: 'ETP Outlet', description: 'ETP Outlet', displayOrder: 9 },
+  { id: 't8c', testName: 'STP Inlet', description: 'STP Inlet', displayOrder: 10 },
+  { id: 't8d', testName: 'STP Outlet', description: 'STP Outlet', displayOrder: 11 },
+  { id: 't8e', testName: 'Waste Water', description: 'Waste Water', displayOrder: 12 },
+  { id: 't9', testName: 'Drinking Water Testing', description: 'Drinking Water Testing', displayOrder: 13 },
+  { id: 't10', testName: 'Ground Water Quality', description: 'Ground Water Quality', displayOrder: 14 },
+  { id: 't11', testName: 'Surface Water Bodies', description: 'Surface Water Bodies', displayOrder: 15 },
+  { id: 't12', testName: 'Soil Quality Test', description: 'Soil Quality Test', displayOrder: 16 }
 ]
 
 const FALLBACK_PARAMETERS: TestMasterParameter[] = [
@@ -126,6 +130,10 @@ const FALLBACK_PARAMETERS: TestMasterParameter[] = [
   { id: 'p6', testId: 't6', parameterName: 'PM, SOx, NOx, CO', displayOrder: 1 },
   { id: 'p7', testId: 't7', parameterName: 'Leq', displayOrder: 1 },
   { id: 'p8', testId: 't8', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+  { id: 'p8b', testId: 't8b', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+  { id: 'p8c', testId: 't8c', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+  { id: 'p8d', testId: 't8d', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+  { id: 'p8e', testId: 't8e', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
   {
     id: 'p9',
     testId: 't9',
@@ -206,12 +214,14 @@ let issueToDate = ''
 let issueIssuedByFilter = ''
 let issueIssuedToFilter = ''
 let issueParameterFilter = ''
+let issueCategoryFilter = 'All'
 let drawnSearch = ''
 let drawnFromDate = ''
 let drawnToDate = ''
 let drawnByFilter = ''
 let drawnCustomerFilter = ''
 let drawnParameterFilter = ''
+let drawnCategoryFilter = 'All'
 let issueEditingId = ''
 let drawnEditingId = ''
 const adminUsers: AdminUser[] = []
@@ -317,25 +327,20 @@ const getParameterOptions = (description: string): string[] => {
   const raw = testMasterParameters
     .filter((item) => item.testId === match.id)
     .sort((first, second) => (first.displayOrder ?? 0) - (second.displayOrder ?? 0))
-    .map((item) => item.parameterName)
+    .map((item) => item.parameterName.trim())
+    .filter(Boolean)
 
   const normalizedSeen = new Set<string>()
   const options: string[] = []
 
   raw.forEach((entry) => {
-    entry
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .forEach((part) => {
-        const key = normalizeMasterKey(part)
-        if (normalizedSeen.has(key)) {
-          return
-        }
+    const key = normalizeMasterKey(entry)
+    if (normalizedSeen.has(key)) {
+      return
+    }
 
-        normalizedSeen.add(key)
-        options.push(part)
-      })
+    normalizedSeen.add(key)
+    options.push(entry)
   })
 
   return options
@@ -393,6 +398,17 @@ const setInputValue = (input: HTMLInputElement | null, value: string): void => {
   input.value = value
 }
 
+const MANUAL_PARAMETER_VALUE = '__manual__'
+
+const hasParameterInMaster = (description: string, value: string): boolean => {
+  if (!value) {
+    return false
+  }
+
+  const normalizedValue = normalizeMasterKey(value)
+  return getParameterOptions(description).some((item) => normalizeMasterKey(item) === normalizedValue)
+}
+
 const getInitialParameterValue = (description: string, fallback: string): string => {
   const options = getParameterOptions(description)
   if (fallback && options.some((item) => normalizeMasterKey(item) === normalizeMasterKey(fallback))) {
@@ -435,10 +451,23 @@ const syncParameterSelectOptions = (
   }
 
   const currentValue = preserveExisting ? parameterSelect.value : ''
+  const manualInput = parameterSelect
+    .closest('form')
+    ?.querySelector<HTMLInputElement>('input[name="parameterManual"]')
+  const manualValue = manualInput?.value.trim() ?? ''
+  const keepManualSelection =
+    preserveExisting &&
+    (currentValue === MANUAL_PARAMETER_VALUE ||
+      (currentValue && !hasParameterInMaster(descriptionSelect.value, currentValue) && Boolean(manualValue)))
   const nextValue = getInitialParameterValue(descriptionSelect.value, currentValue)
   const optionsMarkup = renderParameterOptions(descriptionSelect.value, nextValue)
 
-  parameterSelect.innerHTML = `<option value="">Select parameter</option>${optionsMarkup}`
+  parameterSelect.innerHTML = `<option value="">Select parameter</option>${optionsMarkup}<option value="${MANUAL_PARAMETER_VALUE}">Manual Entry</option>`
+
+  if (keepManualSelection) {
+    parameterSelect.value = MANUAL_PARAMETER_VALUE
+    return
+  }
 
   if (nextValue) {
     parameterSelect.value = nextValue
@@ -483,13 +512,19 @@ const renderSampleDescriptionSelect = (selectedDescription: string, label: strin
   `
 }
 
-const renderAutoParameterField = (value: string, label: string): string => {
+const renderAutoParameterField = (description: string, value: string, label: string): string => {
+  const manualSelected = Boolean(value) && !hasParameterInMaster(description, value)
+  const selectedValue = manualSelected ? '' : value
   return `
     <label class="field-group"><span>${label}</span>
       <select name="parameterToBeTested" required>
         <option value="">Select parameter</option>
-        ${value ? `<option value="${escapeHtml(value)}" selected>${escapeHtml(value)}</option>` : ''}
+        ${renderParameterOptions(description, selectedValue)}
+        <option value="${MANUAL_PARAMETER_VALUE}" ${manualSelected ? 'selected' : ''}>Manual Entry</option>
       </select>
+    </label>
+    <label class="field-group manual-parameter ${manualSelected ? '' : 'hidden'}"><span>Manual Parameter</span>
+      <input name="parameterManual" value="${escapeHtml(manualSelected ? value : '')}" placeholder="Enter full test parameter set" ${manualSelected ? 'required' : ''} />
     </label>
   `
 }
@@ -553,6 +588,11 @@ const bindIssueAutoEvents = (form: HTMLFormElement, isEditing: boolean): void =>
 
   descriptionSelect?.addEventListener('change', () => {
     syncParameterSelectOptions(descriptionSelect, parameterSelect, false)
+    syncManualParameterUi(form)
+  })
+
+  parameterSelect?.addEventListener('change', () => {
+    syncManualParameterUi(form)
   })
 }
 
@@ -563,7 +603,42 @@ const bindDrawnAutoEvents = (form: HTMLFormElement, isEditing: boolean): void =>
 
   descriptionSelect?.addEventListener('change', () => {
     syncParameterSelectOptions(descriptionSelect, parameterSelect, false)
+    syncManualParameterUi(form)
   })
+
+  parameterSelect?.addEventListener('change', () => {
+    syncManualParameterUi(form)
+  })
+}
+
+const syncManualParameterUi = (form: HTMLFormElement): void => {
+  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+  const manualWrapper = form.querySelector<HTMLLabelElement>('.manual-parameter')
+  const manualInput = form.querySelector<HTMLInputElement>('input[name="parameterManual"]')
+
+  if (!parameterSelect || !manualWrapper || !manualInput) {
+    return
+  }
+
+  const manualMode = parameterSelect.value === MANUAL_PARAMETER_VALUE
+  manualWrapper.classList.toggle('hidden', !manualMode)
+
+  if (manualMode) {
+    manualInput.required = true
+    return
+  }
+
+  manualInput.required = false
+  manualInput.value = ''
+}
+
+const getResolvedParameterValue = (formData: FormData, getter: (formData: FormData, name: string) => string): string => {
+  const selectedParameter = getter(formData, 'parameterToBeTested')
+  if (selectedParameter === MANUAL_PARAMETER_VALUE) {
+    return getter(formData, 'parameterManual')
+  }
+
+  return selectedParameter
 }
 
 const syncIssueDraftFromAutoFields = (form: HTMLFormElement): void => {
@@ -666,7 +741,7 @@ const renderIssueAutoFields = (
     renderAutoSerialField(srNoValue, shouldReadonlyAutoField(isEditing)),
     renderAutoCodeField(codeNoValue),
     renderSampleDescriptionSelect(descriptionValue, 'Sample Description'),
-    renderAutoParameterField(parameterValue, 'Parameter to be tested')
+    renderAutoParameterField(descriptionValue, parameterValue, 'Parameter to be tested')
   ].join('')
 }
 
@@ -679,7 +754,7 @@ const renderDrawnAutoFields = (
   return [
     renderAutoSerialField(srNoValue, shouldReadonlyAutoField(isEditing)),
     renderSampleDescriptionSelect(descriptionValue, 'Sample Description'),
-    renderAutoParameterField(parameterValue, 'Parameter to be Tested')
+    renderAutoParameterField(descriptionValue, parameterValue, 'Parameter to be Tested')
   ].join('')
 }
 
@@ -687,11 +762,13 @@ const renderDraftHint = (isEditing: boolean): string => (isEditing ? '' : render
 
 const initializeIssueAutoUi = (form: HTMLFormElement, isEditing: boolean): void => {
   syncAutoIssueFields(form, isEditing)
+  syncManualParameterUi(form)
   bindIssueAutoEvents(form, isEditing)
 }
 
 const initializeDrawnAutoUi = (form: HTMLFormElement, isEditing: boolean): void => {
   syncAutoDrawnFields(form, isEditing)
+  syncManualParameterUi(form)
   bindDrawnAutoEvents(form, isEditing)
 }
 
@@ -701,7 +778,7 @@ const readIssuePayloadFromForm = (formData: FormData): IssueRecord => {
     codeNo: getIssueFieldValue(formData, 'codeNo'),
     status: normalizeRecordStatus(formData.get('status')),
     sampleDescription: getIssueFieldValue(formData, 'sampleDescription'),
-    parameterToBeTested: getIssueFieldValue(formData, 'parameterToBeTested'),
+    parameterToBeTested: getResolvedParameterValue(formData, getIssueFieldValue),
     issuedOn: getIssueFieldValue(formData, 'issuedOn'),
     issuedBy: getIssueFieldValue(formData, 'issuedBy'),
     issuedTo: getIssueFieldValue(formData, 'issuedTo'),
@@ -720,7 +797,7 @@ const readDrawnPayloadFromForm = (formData: FormData): DrawnRecord => {
     sampleDrawnOn: getDrawnFieldValue(formData, 'sampleDrawnOn'),
     sampleDrawnBy: getDrawnFieldValue(formData, 'sampleDrawnBy'),
     customerNameAddress: getDrawnFieldValue(formData, 'customerNameAddress'),
-    parameterToBeTested: getDrawnFieldValue(formData, 'parameterToBeTested'),
+    parameterToBeTested: getResolvedParameterValue(formData, getDrawnFieldValue),
     reportDueOn: getDrawnFieldValue(formData, 'reportDueOn'),
     sampleReceivedBy: getDrawnFieldValue(formData, 'sampleReceivedBy')
   })
@@ -734,7 +811,7 @@ const syncIssueDraftPayload = (form: HTMLFormElement): Record<string, string> =>
     codeNo: getIssueFieldValue(draftData, 'codeNo'),
     status: getIssueFieldValue(draftData, 'status'),
     sampleDescription: getIssueFieldValue(draftData, 'sampleDescription'),
-    parameterToBeTested: getIssueFieldValue(draftData, 'parameterToBeTested'),
+    parameterToBeTested: getResolvedParameterValue(draftData, getIssueFieldValue),
     issuedOn: getIssueFieldValue(draftData, 'issuedOn'),
     issuedBy: getIssueFieldValue(draftData, 'issuedBy'),
     issuedTo: getIssueFieldValue(draftData, 'issuedTo'),
@@ -755,7 +832,7 @@ const syncDrawnDraftPayload = (form: HTMLFormElement): Record<string, string> =>
     sampleDrawnOn: getDrawnFieldValue(draftData, 'sampleDrawnOn'),
     sampleDrawnBy: getDrawnFieldValue(draftData, 'sampleDrawnBy'),
     customerNameAddress: getDrawnFieldValue(draftData, 'customerNameAddress'),
-    parameterToBeTested: getDrawnFieldValue(draftData, 'parameterToBeTested'),
+    parameterToBeTested: getResolvedParameterValue(draftData, getDrawnFieldValue),
     reportDueOn: getDrawnFieldValue(draftData, 'reportDueOn'),
     sampleReceivedBy: getDrawnFieldValue(draftData, 'sampleReceivedBy')
   }
@@ -1178,6 +1255,18 @@ const toDrawnCreatePayload = (record: DrawnRecord): DrawnRecord => ({
   sampleReceivedBy: record.sampleReceivedBy
 })
 
+const normalizeCategoryFilter = (value: string): string => value.trim().toLowerCase()
+
+const matchesCategory = (sampleDescription: string, selectedCategory: string): boolean => {
+  const category = normalizeCategoryFilter(selectedCategory)
+  if (!category || category === 'all') {
+    return true
+  }
+
+  const description = sampleDescription.trim().toLowerCase()
+  return description.includes(category)
+}
+
 const resetIssueFilters = (): void => {
   issueSearch = ''
   issueFromDate = ''
@@ -1185,6 +1274,7 @@ const resetIssueFilters = (): void => {
   issueIssuedByFilter = ''
   issueIssuedToFilter = ''
   issueParameterFilter = ''
+  issueCategoryFilter = 'All'
 }
 
 const resetDrawnFilters = (): void => {
@@ -1194,6 +1284,7 @@ const resetDrawnFilters = (): void => {
   drawnByFilter = ''
   drawnCustomerFilter = ''
   drawnParameterFilter = ''
+  drawnCategoryFilter = 'All'
 }
 
 const downloadCsv = (fileName: string, headers: string[], rows: string[][]): void => {
@@ -1212,6 +1303,7 @@ const getFilteredIssueRecords = (): IssueRecord[] => {
   const issuedByFilter = issueIssuedByFilter.trim().toLowerCase()
   const issuedToFilter = issueIssuedToFilter.trim().toLowerCase()
   const parameterFilter = issueParameterFilter.trim().toLowerCase()
+  const categoryFilter = issueCategoryFilter.trim().toLowerCase()
 
   return issueRecords.filter((record) => {
     const dateValue = toDateValue(record.issuedOn)
@@ -1221,13 +1313,14 @@ const getFilteredIssueRecords = (): IssueRecord[] => {
     const matchesIssuedBy = !issuedByFilter || record.issuedBy.toLowerCase().includes(issuedByFilter)
     const matchesIssuedTo = !issuedToFilter || record.issuedTo.toLowerCase().includes(issuedToFilter)
     const matchesParameter = !parameterFilter || record.parameterToBeTested.toLowerCase().includes(parameterFilter)
+    const matchesSelectedCategory = matchesCategory(record.sampleDescription, categoryFilter)
 
     if (!query) {
-      return inDateRange && matchesIssuedBy && matchesIssuedTo && matchesParameter
+      return inDateRange && matchesIssuedBy && matchesIssuedTo && matchesParameter && matchesSelectedCategory
     }
 
     const serial = record.srNo.toLowerCase()
-    return inDateRange && matchesIssuedBy && matchesIssuedTo && matchesParameter && serial.includes(query)
+    return inDateRange && matchesIssuedBy && matchesIssuedTo && matchesParameter && matchesSelectedCategory && serial.includes(query)
   })
 }
 
@@ -1236,6 +1329,7 @@ const getFilteredDrawnRecords = (): DrawnRecord[] => {
   const sampleByFilter = drawnByFilter.trim().toLowerCase()
   const customerFilter = drawnCustomerFilter.trim().toLowerCase()
   const parameterFilter = drawnParameterFilter.trim().toLowerCase()
+  const categoryFilter = drawnCategoryFilter.trim().toLowerCase()
 
   return drawnRecords.filter((record) => {
     const dateValue = toDateValue(record.sampleDrawnOn)
@@ -1245,13 +1339,14 @@ const getFilteredDrawnRecords = (): DrawnRecord[] => {
     const matchesDrawnBy = !sampleByFilter || record.sampleDrawnBy.toLowerCase().includes(sampleByFilter)
     const matchesCustomer = !customerFilter || record.customerNameAddress.toLowerCase().includes(customerFilter)
     const matchesParameter = !parameterFilter || record.parameterToBeTested.toLowerCase().includes(parameterFilter)
+    const matchesSelectedCategory = matchesCategory(record.sampleDescription, categoryFilter)
 
     if (!query) {
-      return inDateRange && matchesDrawnBy && matchesCustomer && matchesParameter
+      return inDateRange && matchesDrawnBy && matchesCustomer && matchesParameter && matchesSelectedCategory
     }
 
     const serial = record.srNo.toLowerCase()
-    return inDateRange && matchesDrawnBy && matchesCustomer && matchesParameter && serial.includes(query)
+    return inDateRange && matchesDrawnBy && matchesCustomer && matchesParameter && matchesSelectedCategory && serial.includes(query)
   })
 }
 
@@ -1663,12 +1758,12 @@ const renderIssueTable = (canDelete: boolean): string => {
         <tbody>
           ${filtered
             .map(
-              (item) => {
+              (item, index) => {
                 const status = getIssueStatus(item)
                 const overdue = isOverdue(item.reportDueOn, status, item.reportedOn)
                 return `
             <tr class="${overdue ? 'row-overdue' : ''}">
-              <td>${escapeHtml(item.srNo)}</td>
+              <td>${index + 1}</td>
               <td>${escapeHtml(item.codeNo)}</td>
               <td><span class="status-chip status-${status.toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(status)}</span></td>
               <td>${escapeHtml(item.sampleDescription)}</td>
@@ -1722,12 +1817,12 @@ const renderDrawnTable = (canDelete: boolean): string => {
         <tbody>
           ${filtered
             .map(
-              (item) => {
+              (item, index) => {
                 const status = getDrawnStatus(item)
                 const overdue = isOverdue(item.reportDueOn, status)
                 return `
             <tr class="${overdue ? 'row-overdue' : ''}">
-              <td>${escapeHtml(item.srNo)}</td>
+              <td>${index + 1}</td>
               <td><span class="status-chip status-${status.toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(status)}</span></td>
               <td>${escapeHtml(item.sampleDescription)}</td>
               <td>${escapeHtml(item.sampleDrawnOn)}</td>
@@ -1802,6 +1897,15 @@ const renderIssueRecordsModule = (): string => {
       </div>
       <div class="module-toolbar">
         <input id="issue-search" placeholder="Search by Sr.No." value="${escapeHtml(issueSearch)}" />
+        <label class="toolbar-filter" for="issue-filter-category">Filter by Category
+          <select id="issue-filter-category">
+            <option value="All" ${issueCategoryFilter === 'All' ? 'selected' : ''}>All</option>
+            <option value="Air" ${issueCategoryFilter === 'Air' ? 'selected' : ''}>Air</option>
+            <option value="Water" ${issueCategoryFilter === 'Water' ? 'selected' : ''}>Water</option>
+            <option value="Soil" ${issueCategoryFilter === 'Soil' ? 'selected' : ''}>Soil</option>
+            <option value="Noise" ${issueCategoryFilter === 'Noise' ? 'selected' : ''}>Noise</option>
+          </select>
+        </label>
         <input id="issue-from" type="date" value="${escapeHtml(issueFromDate)}" />
         <input id="issue-to" type="date" value="${escapeHtml(issueToDate)}" />
         <input id="issue-filter-issued-by" placeholder="Filter: Issued By" value="${escapeHtml(issueIssuedByFilter)}" />
@@ -1863,6 +1967,15 @@ const renderDrawnRecordsModule = (): string => {
       </div>
       <div class="module-toolbar">
         <input id="drawn-search" placeholder="Search by Sr.No." value="${escapeHtml(drawnSearch)}" />
+        <label class="toolbar-filter" for="drawn-filter-category">Filter by Category
+          <select id="drawn-filter-category">
+            <option value="All" ${drawnCategoryFilter === 'All' ? 'selected' : ''}>All</option>
+            <option value="Air" ${drawnCategoryFilter === 'Air' ? 'selected' : ''}>Air</option>
+            <option value="Water" ${drawnCategoryFilter === 'Water' ? 'selected' : ''}>Water</option>
+            <option value="Soil" ${drawnCategoryFilter === 'Soil' ? 'selected' : ''}>Soil</option>
+            <option value="Noise" ${drawnCategoryFilter === 'Noise' ? 'selected' : ''}>Noise</option>
+          </select>
+        </label>
         <input id="drawn-from" type="date" value="${escapeHtml(drawnFromDate)}" />
         <input id="drawn-to" type="date" value="${escapeHtml(drawnToDate)}" />
         <input id="drawn-filter-by" placeholder="Filter: Drawn By" value="${escapeHtml(drawnByFilter)}" />
@@ -2279,6 +2392,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   const issueSearchInput = document.querySelector<HTMLInputElement>('#issue-search')
   const issueFromInput = document.querySelector<HTMLInputElement>('#issue-from')
   const issueToInput = document.querySelector<HTMLInputElement>('#issue-to')
+  const issueCategoryInput = document.querySelector<HTMLSelectElement>('#issue-filter-category')
   const issueIssuedByInput = document.querySelector<HTMLInputElement>('#issue-filter-issued-by')
   const issueIssuedToInput = document.querySelector<HTMLInputElement>('#issue-filter-issued-to')
   const issueParameterInput = document.querySelector<HTMLInputElement>('#issue-filter-parameter')
@@ -2289,6 +2403,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   const drawnSearchInput = document.querySelector<HTMLInputElement>('#drawn-search')
   const drawnFromInput = document.querySelector<HTMLInputElement>('#drawn-from')
   const drawnToInput = document.querySelector<HTMLInputElement>('#drawn-to')
+  const drawnCategoryInput = document.querySelector<HTMLSelectElement>('#drawn-filter-category')
   const drawnByInput = document.querySelector<HTMLInputElement>('#drawn-filter-by')
   const drawnCustomerInput = document.querySelector<HTMLInputElement>('#drawn-filter-customer')
   const drawnParameterInput = document.querySelector<HTMLInputElement>('#drawn-filter-parameter')
@@ -2344,6 +2459,11 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   issueFromInput?.addEventListener('change', () => {
     issueFromDate = issueFromInput.value
+    renderDashboard(session, 'issue-records')
+  })
+
+  issueCategoryInput?.addEventListener('change', () => {
+    issueCategoryFilter = issueCategoryInput.value || 'All'
     renderDashboard(session, 'issue-records')
   })
 
@@ -2472,6 +2592,11 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   drawnToInput?.addEventListener('change', () => {
     drawnToDate = drawnToInput.value
+    renderDashboard(session, 'drawn-records')
+  })
+
+  drawnCategoryInput?.addEventListener('change', () => {
+    drawnCategoryFilter = drawnCategoryInput.value || 'All'
     renderDashboard(session, 'drawn-records')
   })
 
