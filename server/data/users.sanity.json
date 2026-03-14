@@ -1,8 +1,17 @@
 [
   {
-    "id": "u_staff_01",
-    "email": "sanity-check@labsoft.local",
-    "passwordHash": "$2b$10$zhnYyCgIroYoK.59FeKEGuFHSq.vVLQ/Hzg1ye97wiEgzCdsOUikm",
-    "createdAt": "2026-03-04T20:01:55.260Z"
+    "email": "admin@labsoft.dev",
+    "role": "admin",
+    "name": "Admin"
+  },
+  {
+    "email": "staff@labsoft.dev",
+    "role": "staff",
+    "name": "Staff"
+  },
+  {
+    "email": "customercare@labsoft.dev",
+    "role": "customer",
+    "name": "Customer Care"
   }
 ]

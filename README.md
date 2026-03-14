@@ -28,7 +28,6 @@ Admin role gets an `Admin Panel` module with:
 - Activity cards on dashboard: total entries, overdue entries, today's new entries
 - Soft delete with undo window (8 seconds) before final delete API commit
 - Duplicate checks on records (Issue: `Sr.No.`/`Code No.`, Drawn: `Sr.No.`)
-- Status workflow for both registers: `Pending`, `In Progress`, `Reported`
 
 ## Data Retention
 
