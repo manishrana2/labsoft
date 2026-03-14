@@ -96,12 +96,18 @@ const DEFAULT_TEST_MASTER = {
 }
 
 const getUserRole = (user) => {
-  if (user?.role === 'admin' || user?.role === 'staff') {
+  if (user?.role === 'admin' || user?.role === 'staff' || user?.role === 'customer') {
     return user.role
+  }
+
+  if (user?.role === 'customer-care') {
+    return 'customer'
   }
 
   return user?.email === DEFAULT_USER.email ? 'admin' : 'staff'
 }
+
+const getRequestRole = (req) => getUserRole({ role: req.user?.role, email: req.user?.email })
 
 const makeRecordId = (prefix) => `${prefix}_${crypto.randomUUID()}`
 const makeUserId = () => `u_${crypto.randomUUID()}`
@@ -131,10 +137,71 @@ const normalizeRecordStatus = (value, fallback = 'Pending') => {
 
 const normalizeText = (value) => String(value ?? '').trim().toLowerCase()
 
+const normalizeUserCode = (value) => String(value ?? '').trim()
+const normalizeUserName = (value) => String(value ?? '').trim()
+
+const getEmailLabel = (email) => {
+  const normalizedEmail = String(email ?? '').trim()
+  if (!normalizedEmail.includes('@')) {
+    return normalizedEmail
+  }
+
+  return normalizedEmail.split('@')[0]
+}
+
+const getUserDisplayName = (user) => {
+  const explicitName = normalizeUserName(user?.name)
+  if (explicitName) {
+    return explicitName
+  }
+
+  return getEmailLabel(user?.email)
+}
+
+const resolveUserDisplayByCode = (users, value) => {
+  const normalizedValue = normalizeUserCode(value)
+  if (!normalizedValue) {
+    return ''
+  }
+
+  const user = users.find((entry) => normalizeUserCode(entry.userCode).toLowerCase() === normalizedValue.toLowerCase())
+  return user ? getUserDisplayName(user) : normalizedValue
+}
+
+const requiresUlrNo = (sampleDescription) => {
+  const value = String(sampleDescription ?? '').toLowerCase()
+  return value.includes('drinking water') || value.includes('ground water')
+}
+
+const isUserCodeTaken = (users, userCode, excludeUserId = '') => {
+  const normalizedCode = normalizeUserCode(userCode).toLowerCase()
+  if (!normalizedCode) {
+    return false
+  }
+
+  return users.some(
+    (entry) => String(entry.id) !== String(excludeUserId) && normalizeUserCode(entry.userCode).toLowerCase() === normalizedCode
+  )
+}
+
+const getAuthenticatedUser = async (req) => {
+  const users = await readUsers()
+  const user = users.find((entry) => String(entry.id) === String(req.user?.sub))
+
+  if (user) {
+    return { user, users }
+  }
+
+  const fallback = users.find((entry) => entry.email === req.user?.email)
+  return { user: fallback ?? null, users }
+}
+
 const sanitizeUser = (user) => ({
   id: user.id,
   email: user.email,
+  name: getUserDisplayName(user),
   role: getUserRole(user),
+  userCode: normalizeUserCode(user.userCode),
   isActive: user.isActive !== false,
   createdAt: user.createdAt
 })
@@ -232,7 +299,72 @@ const writeRegisterHistory = async (entries) => {
   await fs.writeFile(registerHistoryDbPath, JSON.stringify(entries, null, 2))
 }
 
-const appendRegisterHistory = async ({ action, source, actor = 'system', recordId = '-', srNo = '-', data = null }) => {
+const readBackupFile = async (fileName) => {
+  const normalizedFileName = String(fileName ?? '').trim()
+  if (!normalizedFileName || normalizedFileName.includes('/') || normalizedFileName.includes('..')) {
+    const error = new Error('Valid backup file name is required.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const filePath = path.join(backupsDirPath, normalizedFileName)
+
+  try {
+    const content = await fs.readFile(filePath, 'utf8')
+    return JSON.parse(content)
+  } catch {
+    const error = new Error('Backup file not found.')
+    error.statusCode = 404
+    throw error
+  }
+}
+
+const summarizeBackupPayload = (parsed) => ({
+  createdAt: String(parsed?.createdAt ?? '').trim(),
+  createdBy: String(parsed?.createdBy ?? '').trim(),
+  usersCount: Array.isArray(parsed?.users) ? parsed.users.length : 0,
+  issueRecordsCount: Array.isArray(parsed?.registers?.issueRecords) ? parsed.registers.issueRecords.length : 0,
+  drawnRecordsCount: Array.isArray(parsed?.registers?.drawnRecords) ? parsed.registers.drawnRecords.length : 0,
+  auditCount: Array.isArray(parsed?.audit) ? parsed.audit.length : 0,
+  registerHistoryCount: Array.isArray(parsed?.registerHistory) ? parsed.registerHistory.length : 0,
+  testMasterTestsCount: Array.isArray(parsed?.testMaster?.tests) ? parsed.testMaster.tests.length : 0,
+  testMasterParametersCount: Array.isArray(parsed?.testMaster?.parameters) ? parsed.testMaster.parameters.length : 0
+})
+
+const createSystemBackup = async (createdBy = 'system') => {
+  await ensureBackupsDir()
+  const users = await readUsers()
+  const registers = await readRegisters()
+  const audit = await readAudit()
+  const registerHistory = await readRegisterHistory()
+  const testMaster = await readTestMaster()
+
+  const fileName = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+  const filePath = path.join(backupsDirPath, fileName)
+  const payload = {
+    createdAt: new Date().toISOString(),
+    createdBy,
+    users,
+    registers,
+    audit,
+    registerHistory,
+    testMaster
+  }
+
+  await fs.writeFile(filePath, JSON.stringify(payload, null, 2))
+  return fileName
+}
+
+const appendRegisterHistory = async ({
+  action,
+  source,
+  actor = 'system',
+  recordId = '-',
+  srNo = '-',
+  data = null,
+  beforeData = null,
+  afterData = null
+}) => {
   const entries = await readRegisterHistory()
   entries.push({
     id: `hist_${crypto.randomUUID()}`,
@@ -242,13 +374,15 @@ const appendRegisterHistory = async ({ action, source, actor = 'system', recordI
     recordId,
     srNo,
     data,
+    beforeData,
+    afterData,
     createdAt: new Date().toISOString()
   })
 
   await writeRegisterHistory(entries)
 }
 
-const appendAudit = async ({ actor = 'system', action, target = '-', details = '' }) => {
+const appendAudit = async ({ actor = 'system', action, target = '-', details = '', before = null, after = null }) => {
   const entries = await readAudit()
   entries.unshift({
     id: makeAuditId(),
@@ -256,6 +390,8 @@ const appendAudit = async ({ actor = 'system', action, target = '-', details = '
     action,
     target,
     details,
+    before,
+    after,
     createdAt: new Date().toISOString()
   })
   await writeAudit(entries.slice(0, 1000))
@@ -309,6 +445,25 @@ const ensureRegisterIds = async () => {
     issueRecords: nextIssueRecords,
     drawnRecords: nextDrawnRecords
   })
+}
+
+const resequenceBySrNo = (records) => {
+  const sorted = [...records].sort((first, second) => {
+    const firstNumeric = Number.parseInt(String(first?.srNo ?? '').match(/\d+/)?.[0] ?? '', 10)
+    const secondNumeric = Number.parseInt(String(second?.srNo ?? '').match(/\d+/)?.[0] ?? '', 10)
+
+    if (Number.isFinite(firstNumeric) && Number.isFinite(secondNumeric) && firstNumeric !== secondNumeric) {
+      return firstNumeric - secondNumeric
+    }
+
+    return String(first?.srNo ?? '').localeCompare(String(second?.srNo ?? ''), undefined, { numeric: true, sensitivity: 'base' })
+  })
+
+  const nextSerialById = new Map(sorted.map((record, index) => [String(record.id), String(index + 1)]))
+  return records.map((record) => ({
+    ...record,
+    srNo: nextSerialById.get(String(record.id)) ?? String(record.srNo ?? '')
+  }))
 }
 
 const ensureAuditFile = async () => {
@@ -376,13 +531,26 @@ const ensureUserDefaults = async () => {
       changed = true
     }
 
-    if (!next.role || (next.role !== 'admin' && next.role !== 'staff')) {
-      next.role = getUserRole(next)
+    const normalizedRole = getUserRole(next)
+    if (!next.role || next.role !== normalizedRole) {
+      next.role = normalizedRole
+      changed = true
+    }
+
+    const normalizedName = normalizeUserName(next.name) || getEmailLabel(next.email)
+    if (String(next.name ?? '') !== normalizedName) {
+      next.name = normalizedName
       changed = true
     }
 
     if (typeof next.isActive !== 'boolean') {
       next.isActive = true
+      changed = true
+    }
+
+    const normalizedUserCode = normalizeUserCode(next.userCode)
+    if (String(next.userCode ?? '') !== normalizedUserCode) {
+      next.userCode = normalizedUserCode
       changed = true
     }
 
@@ -421,14 +589,207 @@ const authenticateToken = (req, res, next) => {
 }
 
 const requireAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
+  if (getRequestRole(req) !== 'admin') {
     return res.status(403).json({ message: 'Admin access required.' })
   }
 
   return next()
 }
 
+const requireDrawnAccess = (req, res, next) => {
+  const role = getRequestRole(req)
+  if (role === 'staff') {
+    return res.status(403).json({ message: 'Staff can access only Issue Register modules.' })
+  }
+
+  return next()
+}
+
+const requireDrawnManageAccess = (req, res, next) => {
+  const role = getRequestRole(req)
+  if (role !== 'admin' && role !== 'customer') {
+    return res.status(403).json({ message: 'Only admin and customer care can modify or delete receiving records.' })
+  }
+
+  return next()
+}
+
+const requireIssueEntryAccess = (req, res, next) => {
+  const role = getRequestRole(req)
+  if (role !== 'admin' && role !== 'staff' && role !== 'customer') {
+    return res.status(403).json({ message: 'Only admin, staff, and customer care can create issue records.' })
+  }
+
+  return next()
+}
+
+const requireIssueManageAccess = (req, res, next) => {
+  const role = getRequestRole(req)
+  if (role !== 'admin' && role !== 'staff' && role !== 'customer') {
+    return res.status(403).json({ message: 'Only admin, staff, and customer care can modify or delete issue records.' })
+  }
+
+  return next()
+}
+
+const allowedSampleCategories = ['air', 'water', 'soil', 'noise']
+
+const getSampleCategory = (sampleDescription) => {
+  const normalized = String(sampleDescription ?? '').trim().toLowerCase()
+  return allowedSampleCategories.find((category) => normalized.includes(category)) ?? ''
+}
+
+const isValidDateInput = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value ?? '').trim())
+
+const buildValidationError = (field, message) => ({ field, message })
+
+const validateIssueRecordPayload = (record, existingRecords = [], excludeId = '') => {
+  const errors = []
+  const requiredFields = [
+    ['srNo', 'Sr.No. is required.'],
+    ['codeNo', 'Code No. is required.'],
+    ['sampleDescription', 'Sample description is required.'],
+    ['parameterToBeTested', 'Parameter to be tested is required.'],
+    ['issuedOn', 'Issued On date is required.'],
+    ['issuedBy', 'Issued By is required.'],
+    ['issuedTo', 'Issued To is required.'],
+    ['reportDueOn', 'Report Due On date is required.'],
+    ['receivedBy', 'Received By is required.']
+  ]
+
+  requiredFields.forEach(([field, message]) => {
+    if (typeof record?.[field] !== 'string' || !String(record[field]).trim()) {
+      errors.push(buildValidationError(field, message))
+    }
+  })
+
+  const sampleCategory = getSampleCategory(record?.sampleDescription)
+  if (!sampleCategory) {
+    errors.push(buildValidationError('sampleDescription', 'Sample category must include Air, Water, Soil, or Noise.'))
+  }
+
+  if (record?.issuedOn && !isValidDateInput(record.issuedOn)) {
+    errors.push(buildValidationError('issuedOn', 'Issued On must be a valid date.'))
+  }
+
+  if (record?.reportDueOn && !isValidDateInput(record.reportDueOn)) {
+    errors.push(buildValidationError('reportDueOn', 'Report Due On must be a valid date.'))
+  }
+
+  if (record?.reportedOn && String(record.reportedOn).trim() && !isValidDateInput(record.reportedOn)) {
+    errors.push(buildValidationError('reportedOn', 'Reported On must be a valid date.'))
+  }
+
+  const issuedOnTime = Date.parse(String(record?.issuedOn ?? ''))
+  const dueOnTime = Date.parse(String(record?.reportDueOn ?? ''))
+  const reportedOnTime = Date.parse(String(record?.reportedOn ?? ''))
+  if (Number.isFinite(issuedOnTime) && Number.isFinite(dueOnTime) && dueOnTime < issuedOnTime) {
+    errors.push(buildValidationError('reportDueOn', 'Report Due On cannot be earlier than Issued On.'))
+  }
+
+  if (String(record?.reportedOn ?? '').trim() && Number.isFinite(issuedOnTime) && Number.isFinite(reportedOnTime) && reportedOnTime < issuedOnTime) {
+    errors.push(buildValidationError('reportedOn', 'Reported On cannot be earlier than Issued On.'))
+  }
+
+  const srNo = normalizeText(record?.srNo)
+  const codeNo = normalizeText(record?.codeNo)
+  const ulrNo = normalizeText(record?.ulrNo)
+  const duplicate = existingRecords.find(
+    (entry) =>
+      String(entry.id) !== String(excludeId) &&
+      (normalizeText(entry.srNo) === srNo ||
+        normalizeText(entry.codeNo) === codeNo ||
+        (ulrNo && normalizeText(entry.ulrNo) === ulrNo))
+  )
+
+  if (duplicate) {
+    if (normalizeText(duplicate.srNo) === srNo) {
+      errors.push(buildValidationError('srNo', `Duplicate Sr.No. found: ${record.srNo}`))
+    }
+    if (normalizeText(duplicate.codeNo) === codeNo) {
+      errors.push(buildValidationError('codeNo', `Duplicate Code No. found: ${record.codeNo}`))
+    }
+    if (ulrNo && normalizeText(duplicate.ulrNo) === ulrNo) {
+      errors.push(buildValidationError('ulrNo', `Duplicate ULR No. found: ${record.ulrNo}`))
+    }
+  }
+
+  return errors
+}
+
+const validateDrawnRecordPayload = (record, existingRecords = [], excludeId = '') => {
+  const errors = []
+  const requiredFields = [
+    ['srNo', 'Sr.No. is required.'],
+    ['reportCode', 'Report Code is required.'],
+    ['sampleDescription', 'Sample description is required.'],
+    ['sampleDrawnOn', 'Sample Drawn On date is required.'],
+    ['sampleDrawnBy', 'Sample Drawn By is required.'],
+    ['customerNameAddress', 'Customer Name & Address is required.'],
+    ['parameterToBeTested', 'Parameter to be tested is required.'],
+    ['reportDueOn', 'Report Due On date is required.'],
+    ['sampleReceivedBy', 'Sample Received By is required.']
+  ]
+
+  requiredFields.forEach(([field, message]) => {
+    if (typeof record?.[field] !== 'string' || !String(record[field]).trim()) {
+      errors.push(buildValidationError(field, message))
+    }
+  })
+
+  const sampleCategory = getSampleCategory(record?.sampleDescription)
+  if (!sampleCategory) {
+    errors.push(buildValidationError('sampleDescription', 'Sample category must include Air, Water, Soil, or Noise.'))
+  }
+
+  if (record?.sampleDrawnOn && !isValidDateInput(record.sampleDrawnOn)) {
+    errors.push(buildValidationError('sampleDrawnOn', 'Sample Drawn On must be a valid date.'))
+  }
+
+  if (record?.reportDueOn && !isValidDateInput(record.reportDueOn)) {
+    errors.push(buildValidationError('reportDueOn', 'Report Due On must be a valid date.'))
+  }
+
+  const drawnOnTime = Date.parse(String(record?.sampleDrawnOn ?? ''))
+  const dueOnTime = Date.parse(String(record?.reportDueOn ?? ''))
+  if (Number.isFinite(drawnOnTime) && Number.isFinite(dueOnTime) && dueOnTime < drawnOnTime) {
+    errors.push(buildValidationError('reportDueOn', 'Report Due On cannot be earlier than Sample Drawn On.'))
+  }
+
+  const srNo = normalizeText(record?.srNo)
+  const reportCode = normalizeText(record?.reportCode)
+  const ulrNo = normalizeText(record?.ulrNo)
+  const duplicate = existingRecords.find(
+    (entry) =>
+      String(entry.id) !== String(excludeId) &&
+      (normalizeText(entry.srNo) === srNo ||
+        normalizeText(entry.reportCode) === reportCode ||
+        (ulrNo && normalizeText(entry.ulrNo) === ulrNo))
+  )
+
+  if (duplicate) {
+    if (normalizeText(duplicate.srNo) === srNo) {
+      errors.push(buildValidationError('srNo', `Duplicate Sr.No. found: ${record.srNo}`))
+    }
+    if (normalizeText(duplicate.reportCode) === reportCode) {
+      errors.push(buildValidationError('reportCode', `Duplicate Report Code found: ${record.reportCode}`))
+    }
+    if (ulrNo && normalizeText(duplicate.ulrNo) === ulrNo) {
+      errors.push(buildValidationError('ulrNo', `Duplicate ULR No. found: ${record.ulrNo}`))
+    }
+  }
+
+  return errors
+}
+
 app.use(express.json())
+
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+  next()
+})
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
@@ -465,22 +826,63 @@ app.post('/api/login', async (req, res) => {
 
   return res.json({
     token,
-    user: { email: user.email, role }
+    user: { email: user.email, name: getUserDisplayName(user), role, userCode: normalizeUserCode(user.userCode) }
   })
 })
 
-app.get('/api/me', authenticateToken, (req, res) => {
+app.get('/api/me', authenticateToken, async (req, res) => {
+  const { user } = await getAuthenticatedUser(req)
+  const role = user ? getUserRole(user) : getUserRole({ role: req.user.role, email: req.user.email })
   return res.json({
     user: {
       email: req.user.email,
-      role: req.user.role === 'admin' ? 'admin' : 'staff'
+      name: getUserDisplayName(user ?? req.user),
+      role,
+      userCode: normalizeUserCode(user?.userCode)
     }
   })
 })
 
+app.get('/api/user-directory', authenticateToken, async (_req, res) => {
+  const users = await readUsers()
+  return res.json({
+    users: users
+      .filter((user) => user.isActive !== false)
+      .map((user) => ({
+        id: user.id,
+        name: getUserDisplayName(user),
+        userCode: normalizeUserCode(user.userCode)
+      }))
+  })
+})
+
 app.get('/api/registers', authenticateToken, async (_req, res) => {
+  const req = _req
   const registers = await readRegisters()
-  return res.json(registers)
+  const role = getRequestRole(req)
+  const users = await readUsers()
+
+  const issueRecords = registers.issueRecords.map((record) => ({
+    ...record,
+    receivedByName: resolveUserDisplayByCode(users, record.receivedBy)
+  }))
+
+  const drawnRecords = registers.drawnRecords.map((record) => ({
+    ...record,
+    sampleReceivedByName: resolveUserDisplayByCode(users, record.sampleReceivedBy)
+  }))
+
+  if (role === 'staff') {
+    return res.json({
+      issueRecords,
+      drawnRecords: []
+    })
+  }
+
+  return res.json({
+    issueRecords,
+    drawnRecords
+  })
 })
 
 app.get('/api/test-master', authenticateToken, async (_req, res) => {
@@ -494,12 +896,49 @@ app.get('/api/test-master', authenticateToken, async (_req, res) => {
   return res.json({ tests, parameters })
 })
 
-app.post('/api/registers/issue', authenticateToken, async (req, res) => {
+app.get('/api/staff/receiving-by-report-code/:reportCode', authenticateToken, async (req, res) => {
+
+  const reportCode = String(req.params?.reportCode ?? '').trim()
+  if (!reportCode) {
+    return res.status(400).json({ message: 'Report Code is required.' })
+  }
+
+  const registers = await readRegisters()
+  const normalize = (v) => String(v ?? '').replace(/\s+/g, '').toLowerCase()
+  const normalizedInput = normalize(reportCode)
+  const debugList = registers.drawnRecords.map(entry => ({ raw: entry.reportCode, normalized: normalize(entry.reportCode) }))
+  console.log('Receiving lookup:', { input: reportCode, normalizedInput, debugList })
+  const match = registers.drawnRecords.find((entry) => normalize(entry.reportCode) === normalizedInput)
+
+  if (!match) {
+    return res.status(404).json({ message: 'No receiving entry found for this Report Code.' })
+  }
+
+  return res.json({
+    record: {
+      srNo: String(match.srNo ?? '').trim(),
+      reportCode: String(match.reportCode ?? '').trim(),
+      ulrNo: String(match.ulrNo ?? '').trim(),
+      sampleDescription: String(match.sampleDescription ?? '').trim(),
+      parameterToBeTested: String(match.parameterToBeTested ?? '').trim(),
+      issuedOn: String(match.sampleDrawnOn ?? '').trim(),
+      issuedBy: String(match.sampleDrawnBy ?? '').trim(),
+      issuedTo: String(match.sampleReceivedBy ?? '').trim(),
+      reportDueOn: String(match.reportDueOn ?? '').trim()
+    }
+  })
+})
+
+const findReceivingByReportCode = (registers, reportCode) => {
+  const normalizedInput = String(reportCode ?? '').replace(/\s+/g, '').toLowerCase()
+  return registers.drawnRecords.find((entry) => String(entry.reportCode ?? '').replace(/\s+/g, '').toLowerCase() === normalizedInput) ?? null
+}
+
+app.post('/api/registers/issue', authenticateToken, requireIssueEntryAccess, async (req, res) => {
   const record = req.body
   const requiredFields = [
     'srNo',
     'codeNo',
-    'status',
     'sampleDescription',
     'parameterToBeTested',
     'issuedOn',
@@ -509,27 +948,48 @@ app.post('/api/registers/issue', authenticateToken, async (req, res) => {
     'receivedBy'
   ]
 
-  if (!requireFields(record, requiredFields)) {
-    return res.status(400).json({ message: 'All issue register fields are required.' })
+  const { user: actor } = await getAuthenticatedUser(req)
+  const actorRole = actor ? getUserRole(actor) : getRequestRole(req)
+  const assignedUserCode = normalizeUserCode(actor?.userCode)
+  if (actorRole === 'staff' && !assignedUserCode) {
+    return res.status(400).json({ message: 'Unique number is not assigned to your account. Contact admin.' })
   }
 
   const registers = await readRegisters()
-  const srNo = normalizeText(record.srNo)
-  const codeNo = normalizeText(record.codeNo)
+  const receivingSource = actorRole === 'staff' ? findReceivingByReportCode(registers, record.codeNo) : null
+  if (actorRole === 'staff' && !receivingSource) {
+    return res.status(404).json({ message: 'No receiving entry found for this Report Code.' })
+  }
 
-  const hasDuplicate = registers.issueRecords.some(
-    (entry) => normalizeText(entry.srNo) === srNo || normalizeText(entry.codeNo) === codeNo
-  )
+  const effectiveRecord = actorRole !== 'staff'
+    ? record
+    : {
+        ...record,
+        srNo: String(receivingSource?.srNo ?? '').trim(),
+        codeNo: String(receivingSource?.reportCode ?? '').trim(),
+        sampleDescription: String(receivingSource?.sampleDescription ?? '').trim(),
+        parameterToBeTested: String(receivingSource?.parameterToBeTested ?? '').trim(),
+        ulrNo: String(receivingSource?.ulrNo ?? '').trim()
+      }
 
-  if (hasDuplicate) {
-    return res.status(409).json({ message: 'Duplicate issue record: Sr.No. or Code No. already exists.' })
+  const ulrNo = String(effectiveRecord.ulrNo ?? '').trim()
+  const needsUlrNo = requiresUlrNo(effectiveRecord.sampleDescription)
+  if (needsUlrNo && !ulrNo) {
+    return res.status(400).json({ message: 'ULR No. is required for Drinking Water or Ground Water samples.', field: 'ulrNo' })
+  }
+
+  const validationErrors = validateIssueRecordPayload(effectiveRecord, registers.issueRecords)
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ message: validationErrors[0].message, field: validationErrors[0].field, errors: validationErrors })
   }
 
   const normalizedRecord = {
-    ...Object.fromEntries(requiredFields.map((field) => [field, String(record[field]).trim()])),
-    status: normalizeRecordStatus(record.status),
-    reportedOn: String(record.reportedOn ?? '').trim(),
-    reportedByRemarks: String(record.reportedByRemarks ?? '').trim()
+    ...Object.fromEntries(requiredFields.map((field) => [field, String(effectiveRecord[field]).trim()])),
+    ulrNo: needsUlrNo ? ulrNo : '',
+    receivedBy: actorRole === 'staff' ? assignedUserCode : String(effectiveRecord.receivedBy).trim(),
+    status: normalizeRecordStatus(effectiveRecord.status, String(effectiveRecord.reportedOn ?? '').trim() ? 'Reported' : 'Pending'),
+    reportedOn: String(effectiveRecord.reportedOn ?? '').trim(),
+    reportedByRemarks: String(effectiveRecord.reportedByRemarks ?? '').trim()
   }
 
   if (normalizedRecord.status !== 'Reported') {
@@ -547,25 +1007,26 @@ app.post('/api/registers/issue', authenticateToken, async (req, res) => {
     actor: req.user?.email,
     recordId: normalizedRecord.id,
     srNo: normalizedRecord.srNo,
-    data: normalizedRecord
+    data: normalizedRecord,
+    afterData: normalizedRecord
   })
   await appendAudit({
     actor: req.user?.email,
     action: 'ISSUE_CREATE',
     target: normalizedRecord.id,
-    details: `SrNo: ${normalizedRecord.srNo}, Status: ${normalizedRecord.status}`
+    details: `SrNo: ${normalizedRecord.srNo}`,
+    after: normalizedRecord
   })
 
   return res.status(201).json({ record: normalizedRecord })
 })
 
-app.put('/api/registers/issue/:id', authenticateToken, async (req, res) => {
+app.put('/api/registers/issue/:id', authenticateToken, requireIssueManageAccess, async (req, res) => {
   const { id } = req.params
   const record = req.body
   const requiredFields = [
     'srNo',
     'codeNo',
-    'status',
     'sampleDescription',
     'parameterToBeTested',
     'issuedOn',
@@ -575,8 +1036,11 @@ app.put('/api/registers/issue/:id', authenticateToken, async (req, res) => {
     'receivedBy'
   ]
 
-  if (!requireFields(record, requiredFields)) {
-    return res.status(400).json({ message: 'All issue register fields are required.' })
+  const { user: actor } = await getAuthenticatedUser(req)
+  const actorRole = actor ? getUserRole(actor) : getRequestRole(req)
+  const assignedUserCode = normalizeUserCode(actor?.userCode)
+  if (actorRole === 'staff' && !assignedUserCode) {
+    return res.status(400).json({ message: 'Unique number is not assigned to your account. Contact admin.' })
   }
 
   const registers = await readRegisters()
@@ -585,23 +1049,36 @@ app.put('/api/registers/issue/:id', authenticateToken, async (req, res) => {
     return res.status(404).json({ message: 'Issue record not found.' })
   }
 
-  const srNo = normalizeText(record.srNo)
-  const codeNo = normalizeText(record.codeNo)
-  const hasDuplicate = registers.issueRecords.some(
-    (entry) =>
-      String(entry.id) !== String(id) &&
-      (normalizeText(entry.srNo) === srNo || normalizeText(entry.codeNo) === codeNo)
-  )
+  const previousRecord = registers.issueRecords[index]
+  const effectiveRecord = actorRole !== 'staff'
+    ? record
+    : {
+        ...record,
+        srNo: String(previousRecord.srNo ?? '').trim(),
+        codeNo: String(previousRecord.codeNo ?? '').trim(),
+        sampleDescription: String(previousRecord.sampleDescription ?? '').trim(),
+        parameterToBeTested: String(previousRecord.parameterToBeTested ?? '').trim(),
+        ulrNo: String(previousRecord.ulrNo ?? '').trim()
+      }
 
-  if (hasDuplicate) {
-    return res.status(409).json({ message: 'Duplicate issue record: Sr.No. or Code No. already exists.' })
+  const ulrNo = String(effectiveRecord.ulrNo ?? '').trim()
+  const needsUlrNo = requiresUlrNo(effectiveRecord.sampleDescription)
+  if (needsUlrNo && !ulrNo) {
+    return res.status(400).json({ message: 'ULR No. is required for Drinking Water or Ground Water samples.', field: 'ulrNo' })
+  }
+
+  const validationErrors = validateIssueRecordPayload(effectiveRecord, registers.issueRecords, id)
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ message: validationErrors[0].message, field: validationErrors[0].field, errors: validationErrors })
   }
 
   const updatedRecord = {
-    ...Object.fromEntries(requiredFields.map((field) => [field, String(record[field]).trim()])),
-    status: normalizeRecordStatus(record.status),
-    reportedOn: String(record.reportedOn ?? '').trim(),
-    reportedByRemarks: String(record.reportedByRemarks ?? '').trim(),
+    ...Object.fromEntries(requiredFields.map((field) => [field, String(effectiveRecord[field]).trim()])),
+    ulrNo: needsUlrNo ? ulrNo : '',
+    receivedBy: actorRole === 'staff' ? assignedUserCode : String(effectiveRecord.receivedBy).trim(),
+    status: normalizeRecordStatus(effectiveRecord.status, String(effectiveRecord.reportedOn ?? '').trim() ? 'Reported' : 'Pending'),
+    reportedOn: String(effectiveRecord.reportedOn ?? '').trim(),
+    reportedByRemarks: String(effectiveRecord.reportedByRemarks ?? '').trim(),
     id: registers.issueRecords[index].id,
     createdAt: registers.issueRecords[index].createdAt ?? new Date().toISOString()
   }
@@ -618,19 +1095,23 @@ app.put('/api/registers/issue/:id', authenticateToken, async (req, res) => {
     actor: req.user?.email,
     recordId: updatedRecord.id,
     srNo: updatedRecord.srNo,
-    data: updatedRecord
+    data: updatedRecord,
+    beforeData: previousRecord,
+    afterData: updatedRecord
   })
   await appendAudit({
     actor: req.user?.email,
     action: 'ISSUE_UPDATE',
     target: updatedRecord.id,
-    details: `SrNo: ${updatedRecord.srNo}, Status: ${updatedRecord.status}`
+    details: `SrNo: ${updatedRecord.srNo}`,
+    before: previousRecord,
+    after: updatedRecord
   })
 
   return res.json({ record: updatedRecord })
 })
 
-app.delete('/api/registers/issue/:id', authenticateToken, async (req, res) => {
+app.delete('/api/registers/issue/:id', authenticateToken, requireIssueManageAccess, async (req, res) => {
   const { id } = req.params
   const registers = await readRegisters()
   const deletedRecord = registers.issueRecords.find((entry) => String(entry.id) === String(id))
@@ -640,7 +1121,7 @@ app.delete('/api/registers/issue/:id', authenticateToken, async (req, res) => {
     return res.status(404).json({ message: 'Issue record not found.' })
   }
 
-  registers.issueRecords = nextRecords
+  registers.issueRecords = resequenceBySrNo(nextRecords)
   await writeRegisters(registers)
   await appendRegisterHistory({
     action: 'DELETE',
@@ -648,23 +1129,25 @@ app.delete('/api/registers/issue/:id', authenticateToken, async (req, res) => {
     actor: req.user?.email,
     recordId: id,
     srNo: deletedRecord?.srNo ?? '-',
-    data: deletedRecord ?? null
+    data: deletedRecord ?? null,
+    beforeData: deletedRecord ?? null
   })
   await appendAudit({
     actor: req.user?.email,
     action: 'ISSUE_DELETE',
     target: id,
-    details: 'Issue record deleted'
+    details: 'Issue record deleted',
+    before: deletedRecord ?? null
   })
 
   return res.status(204).send()
 })
 
-app.post('/api/registers/drawn', authenticateToken, async (req, res) => {
+app.post('/api/registers/drawn', authenticateToken, requireDrawnAccess, async (req, res) => {
   const record = req.body
   const requiredFields = [
     'srNo',
-    'status',
+    'reportCode',
     'sampleDescription',
     'sampleDrawnOn',
     'sampleDrawnBy',
@@ -674,21 +1157,26 @@ app.post('/api/registers/drawn', authenticateToken, async (req, res) => {
     'sampleReceivedBy'
   ]
 
-  if (!requireFields(record, requiredFields)) {
-    return res.status(400).json({ message: 'All drawn register fields are required.' })
+  const ulrNo = String(record.ulrNo ?? '').trim()
+  const needsUlrNo = requiresUlrNo(record.sampleDescription)
+  if (needsUlrNo && !ulrNo) {
+    return res.status(400).json({ message: 'ULR No. is required for Drinking Water or Ground Water samples.', field: 'ulrNo' })
   }
 
-  const registers = await readRegisters()
-  const srNo = normalizeText(record.srNo)
-  const hasDuplicate = registers.drawnRecords.some((entry) => normalizeText(entry.srNo) === srNo)
+  const { user: actor } = await getAuthenticatedUser(req)
+  const actorRole = actor ? getUserRole(actor) : getRequestRole(req)
 
-  if (hasDuplicate) {
-    return res.status(409).json({ message: 'Duplicate drawn record: Sr.No. already exists.' })
+  const registers = await readRegisters()
+  const validationErrors = validateDrawnRecordPayload(record, registers.drawnRecords)
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ message: validationErrors[0].message, field: validationErrors[0].field, errors: validationErrors })
   }
 
   const normalizedRecord = {
     ...Object.fromEntries(requiredFields.map((field) => [field, String(record[field]).trim()])),
-    status: normalizeRecordStatus(record.status)
+    ulrNo: needsUlrNo ? ulrNo : '',
+    sampleReceivedBy: String(record.sampleReceivedBy).trim(),
+    status: normalizeRecordStatus(record.status, 'Pending')
   }
   normalizedRecord.id = makeRecordId('drw')
   normalizedRecord.createdAt = new Date().toISOString()
@@ -701,24 +1189,26 @@ app.post('/api/registers/drawn', authenticateToken, async (req, res) => {
     actor: req.user?.email,
     recordId: normalizedRecord.id,
     srNo: normalizedRecord.srNo,
-    data: normalizedRecord
+    data: normalizedRecord,
+    afterData: normalizedRecord
   })
   await appendAudit({
     actor: req.user?.email,
     action: 'DRAWN_CREATE',
     target: normalizedRecord.id,
-    details: `SrNo: ${normalizedRecord.srNo}, Status: ${normalizedRecord.status}`
+    details: `SrNo: ${normalizedRecord.srNo}`,
+    after: normalizedRecord
   })
 
   return res.status(201).json({ record: normalizedRecord })
 })
 
-app.put('/api/registers/drawn/:id', authenticateToken, async (req, res) => {
+app.put('/api/registers/drawn/:id', authenticateToken, requireDrawnManageAccess, async (req, res) => {
   const { id } = req.params
   const record = req.body
   const requiredFields = [
     'srNo',
-    'status',
+    'reportCode',
     'sampleDescription',
     'sampleDrawnOn',
     'sampleDrawnBy',
@@ -728,9 +1218,14 @@ app.put('/api/registers/drawn/:id', authenticateToken, async (req, res) => {
     'sampleReceivedBy'
   ]
 
-  if (!requireFields(record, requiredFields)) {
-    return res.status(400).json({ message: 'All drawn register fields are required.' })
+  const ulrNo = String(record.ulrNo ?? '').trim()
+  const needsUlrNo = requiresUlrNo(record.sampleDescription)
+  if (needsUlrNo && !ulrNo) {
+    return res.status(400).json({ message: 'ULR No. is required for Drinking Water or Ground Water samples.', field: 'ulrNo' })
   }
+
+  const { user: actor } = await getAuthenticatedUser(req)
+  const actorRole = actor ? getUserRole(actor) : getRequestRole(req)
 
   const registers = await readRegisters()
   const index = registers.drawnRecords.findIndex((entry) => String(entry.id) === String(id))
@@ -738,18 +1233,17 @@ app.put('/api/registers/drawn/:id', authenticateToken, async (req, res) => {
     return res.status(404).json({ message: 'Drawn record not found.' })
   }
 
-  const srNo = normalizeText(record.srNo)
-  const hasDuplicate = registers.drawnRecords.some(
-    (entry) => String(entry.id) !== String(id) && normalizeText(entry.srNo) === srNo
-  )
-
-  if (hasDuplicate) {
-    return res.status(409).json({ message: 'Duplicate drawn record: Sr.No. already exists.' })
+  const validationErrors = validateDrawnRecordPayload(record, registers.drawnRecords, id)
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ message: validationErrors[0].message, field: validationErrors[0].field, errors: validationErrors })
   }
 
+  const previousRecord = registers.drawnRecords[index]
   const updatedRecord = {
     ...Object.fromEntries(requiredFields.map((field) => [field, String(record[field]).trim()])),
-    status: normalizeRecordStatus(record.status),
+    ulrNo: needsUlrNo ? ulrNo : '',
+    sampleReceivedBy: String(record.sampleReceivedBy).trim(),
+    status: normalizeRecordStatus(record.status, 'Pending'),
     id: registers.drawnRecords[index].id,
     createdAt: registers.drawnRecords[index].createdAt ?? new Date().toISOString()
   }
@@ -762,19 +1256,23 @@ app.put('/api/registers/drawn/:id', authenticateToken, async (req, res) => {
     actor: req.user?.email,
     recordId: updatedRecord.id,
     srNo: updatedRecord.srNo,
-    data: updatedRecord
+    data: updatedRecord,
+    beforeData: previousRecord,
+    afterData: updatedRecord
   })
   await appendAudit({
     actor: req.user?.email,
     action: 'DRAWN_UPDATE',
     target: updatedRecord.id,
-    details: `SrNo: ${updatedRecord.srNo}, Status: ${updatedRecord.status}`
+    details: `SrNo: ${updatedRecord.srNo}`,
+    before: previousRecord,
+    after: updatedRecord
   })
 
   return res.json({ record: updatedRecord })
 })
 
-app.delete('/api/registers/drawn/:id', authenticateToken, async (req, res) => {
+app.delete('/api/registers/drawn/:id', authenticateToken, requireDrawnManageAccess, async (req, res) => {
   const { id } = req.params
   const registers = await readRegisters()
   const deletedRecord = registers.drawnRecords.find((entry) => String(entry.id) === String(id))
@@ -784,7 +1282,7 @@ app.delete('/api/registers/drawn/:id', authenticateToken, async (req, res) => {
     return res.status(404).json({ message: 'Drawn record not found.' })
   }
 
-  registers.drawnRecords = nextRecords
+  registers.drawnRecords = resequenceBySrNo(nextRecords)
   await writeRegisters(registers)
   await appendRegisterHistory({
     action: 'DELETE',
@@ -792,27 +1290,34 @@ app.delete('/api/registers/drawn/:id', authenticateToken, async (req, res) => {
     actor: req.user?.email,
     recordId: id,
     srNo: deletedRecord?.srNo ?? '-',
-    data: deletedRecord ?? null
+    data: deletedRecord ?? null,
+    beforeData: deletedRecord ?? null
   })
   await appendAudit({
     actor: req.user?.email,
     action: 'DRAWN_DELETE',
     target: id,
-    details: 'Drawn record deleted'
+    details: 'Drawn record deleted',
+    before: deletedRecord ?? null
   })
 
   return res.status(204).send()
 })
 
-app.get('/api/admin/users', authenticateToken, requireAdmin, async (_req, res) => {
+app.use('/api/admin', authenticateToken, requireAdmin)
+
+app.get('/api/admin/users', async (_req, res) => {
   const users = await readUsers()
   return res.json({ users: users.map(sanitizeUser) })
 })
 
-app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/users', async (req, res) => {
   const email = String(req.body?.email ?? '').trim().toLowerCase()
+  const name = normalizeUserName(req.body?.name) || getEmailLabel(email)
   const password = String(req.body?.password ?? '').trim()
-  const role = req.body?.role === 'admin' ? 'admin' : 'staff'
+  const roleInput = String(req.body?.role ?? '').trim().toLowerCase()
+  const role = roleInput === 'admin' ? 'admin' : roleInput === 'customer' ? 'customer' : 'staff'
+  const userCode = normalizeUserCode(req.body?.userCode)
 
   if (!isValidEmail(email)) {
     return res.status(400).json({ message: 'Valid email is required.' })
@@ -822,16 +1327,26 @@ app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =
     return res.status(400).json({ message: 'Password must be at least 8 chars and include letter, number, and symbol.' })
   }
 
+  if (role !== 'admin' && !userCode) {
+    return res.status(400).json({ message: 'Unique number is required for Staff and Customer Care users.' })
+  }
+
   const users = await readUsers()
   if (users.some((entry) => entry.email.toLowerCase() === email)) {
     return res.status(409).json({ message: 'User already exists.' })
+  }
+
+  if (isUserCodeTaken(users, userCode)) {
+    return res.status(409).json({ message: 'Unique number is already assigned to another user.' })
   }
 
   const passwordHash = await bcrypt.hash(password, 10)
   const user = {
     id: makeUserId(),
     email,
+    name,
     role,
+    userCode,
     isActive: true,
     passwordHash,
     createdAt: new Date().toISOString()
@@ -844,7 +1359,7 @@ app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =
   return res.status(201).json({ user: sanitizeUser(user) })
 })
 
-app.patch('/api/admin/users/:id/status', authenticateToken, requireAdmin, async (req, res) => {
+app.patch('/api/admin/users/:id/status', async (req, res) => {
   const { id } = req.params
   const isActive = req.body?.isActive === true
   const users = await readUsers()
@@ -874,7 +1389,7 @@ app.patch('/api/admin/users/:id/status', authenticateToken, requireAdmin, async 
   return res.json({ user: sanitizeUser(users[userIndex]) })
 })
 
-app.post('/api/admin/users/:id/reset-password', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/users/:id/reset-password', async (req, res) => {
   const { id } = req.params
   const password = String(req.body?.password ?? '').trim()
   const users = await readUsers()
@@ -904,14 +1419,45 @@ app.post('/api/admin/users/:id/reset-password', authenticateToken, requireAdmin,
   return res.status(204).send()
 })
 
-app.get('/api/admin/audit', authenticateToken, requireAdmin, async (req, res) => {
+app.delete('/api/admin/users/:id', async (req, res) => {
+  const { id } = req.params
+  const users = await readUsers()
+  const userIndex = users.findIndex((entry) => String(entry.id) === String(id))
+
+  if (userIndex === -1) {
+    return res.status(404).json({ message: 'User not found.' })
+  }
+
+  const targetUser = users[userIndex]
+  if (targetUser.email === DEFAULT_USER.email) {
+    return res.status(400).json({ message: 'Default admin account cannot be deleted.' })
+  }
+
+  if (String(targetUser.id) === String(req.user?.sub)) {
+    return res.status(400).json({ message: 'You cannot delete your own active account.' })
+  }
+
+  users.splice(userIndex, 1)
+  await writeUsers(users)
+  await appendAudit({
+    actor: req.user?.email,
+    action: 'USER_DELETE',
+    target: targetUser.email,
+    details: `Role: ${getUserRole(targetUser)}`,
+    before: targetUser
+  })
+
+  return res.status(204).send()
+})
+
+app.get('/api/admin/audit', async (req, res) => {
   const limitRaw = Number(req.query?.limit ?? 50)
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw))) : 50
   const entries = await readAudit()
   return res.json({ entries: entries.slice(0, limit) })
 })
 
-app.get('/api/admin/register-history', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/register-history', async (req, res) => {
   const limitRaw = Number(req.query?.limit ?? 50)
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.floor(limitRaw))) : 50
   const entries = await readRegisterHistory()
@@ -919,7 +1465,7 @@ app.get('/api/admin/register-history', authenticateToken, requireAdmin, async (r
   return res.json({ entries: sorted.slice(0, limit) })
 })
 
-app.get('/api/admin/alerts', authenticateToken, requireAdmin, async (_req, res) => {
+app.get('/api/admin/alerts', async (_req, res) => {
   const registers = await readRegisters()
   const now = new Date()
   const maxDueDate = new Date(now)
@@ -1000,33 +1546,14 @@ app.get('/api/admin/alerts', authenticateToken, requireAdmin, async (_req, res) 
   return res.json({ alerts })
 })
 
-app.post('/api/admin/backup', authenticateToken, requireAdmin, async (req, res) => {
-  await ensureBackupsDir()
-  const users = await readUsers()
-  const registers = await readRegisters()
-  const audit = await readAudit()
-  const registerHistory = await readRegisterHistory()
-  const testMaster = await readTestMaster()
-
-  const fileName = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
-  const filePath = path.join(backupsDirPath, fileName)
-  const payload = {
-    createdAt: new Date().toISOString(),
-    createdBy: req.user?.email ?? 'admin',
-    users,
-    registers,
-    audit,
-    registerHistory,
-    testMaster
-  }
-
-  await fs.writeFile(filePath, JSON.stringify(payload, null, 2))
+app.post('/api/admin/backup', async (req, res) => {
+  const fileName = await createSystemBackup(req.user?.email ?? 'admin')
   await appendAudit({ actor: req.user?.email, action: 'BACKUP_CREATE', target: fileName, details: 'Backup created' })
 
   return res.status(201).json({ fileName })
 })
 
-app.get('/api/admin/backups', authenticateToken, requireAdmin, async (_req, res) => {
+app.get('/api/admin/backups', async (_req, res) => {
   await ensureBackupsDir()
   const entries = await fs.readdir(backupsDirPath, { withFileTypes: true })
   const backups = entries
@@ -1037,20 +1564,31 @@ app.get('/api/admin/backups', authenticateToken, requireAdmin, async (_req, res)
   return res.json({ backups })
 })
 
-app.post('/api/admin/restore', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/backups/:fileName/preview', async (req, res) => {
+  try {
+    const parsed = await readBackupFile(req.params.fileName)
+    return res.json({ preview: summarizeBackupPayload(parsed) })
+  } catch (error) {
+    return res.status(error.statusCode ?? 500).json({ message: error.message ?? 'Failed to read backup preview.' })
+  }
+})
+
+app.post('/api/admin/restore', async (req, res) => {
   const fileName = String(req.body?.fileName ?? '').trim()
-  if (!fileName || fileName.includes('/') || fileName.includes('..')) {
-    return res.status(400).json({ message: 'Valid backup file name is required.' })
+  const requestedSections = Array.isArray(req.body?.sections) ? req.body.sections : []
+  const normalizedSections = [...new Set(requestedSections.map((item) => String(item ?? '').trim()))]
+  const validSections = ['users', 'issueRecords', 'drawnRecords', 'audit', 'registerHistory', 'testMaster']
+
+  if (normalizedSections.length === 0 || normalizedSections.some((item) => !validSections.includes(item))) {
+    return res.status(400).json({ message: 'Select at least one valid restore section.' })
   }
 
-  const filePath = path.join(backupsDirPath, fileName)
   let parsed
 
   try {
-    const content = await fs.readFile(filePath, 'utf8')
-    parsed = JSON.parse(content)
-  } catch {
-    return res.status(404).json({ message: 'Backup file not found.' })
+    parsed = await readBackupFile(fileName)
+  } catch (error) {
+    return res.status(error.statusCode ?? 500).json({ message: error.message ?? 'Unable to read backup file.' })
   }
 
   const users = Array.isArray(parsed?.users) ? parsed.users : null
@@ -1067,17 +1605,44 @@ app.post('/api/admin/restore', authenticateToken, requireAdmin, async (req, res)
     return res.status(400).json({ message: 'Backup file format is invalid.' })
   }
 
-  await writeUsers(users)
-  await writeRegisters({ issueRecords, drawnRecords })
-  await writeAudit(audit)
-  await writeRegisterHistory(registerHistory)
-  await writeTestMaster(testMaster)
+  const safetyBackupFileName = await createSystemBackup(`${req.user?.email ?? 'admin'} (pre-restore)`)
+
+  if (normalizedSections.includes('users')) {
+    await writeUsers(users)
+  }
+
+  if (normalizedSections.includes('issueRecords') || normalizedSections.includes('drawnRecords')) {
+    const currentRegisters = await readRegisters()
+    await writeRegisters({
+      issueRecords: normalizedSections.includes('issueRecords') ? issueRecords : currentRegisters.issueRecords,
+      drawnRecords: normalizedSections.includes('drawnRecords') ? drawnRecords : currentRegisters.drawnRecords
+    })
+  }
+
+  if (normalizedSections.includes('audit')) {
+    await writeAudit(audit)
+  }
+
+  if (normalizedSections.includes('registerHistory')) {
+    await writeRegisterHistory(registerHistory)
+  }
+
+  if (normalizedSections.includes('testMaster')) {
+    await writeTestMaster(testMaster)
+  }
+
   await ensureUserDefaults()
   await ensureRegisterIds()
   await ensureTestMasterFile()
-  await appendAudit({ actor: req.user?.email, action: 'BACKUP_RESTORE', target: fileName, details: 'Backup restored' })
+  await appendAudit({
+    actor: req.user?.email,
+    action: 'BACKUP_RESTORE',
+    target: fileName,
+    details: `Backup restored (${normalizedSections.join(', ')})`,
+    after: { sections: normalizedSections, safetyBackupFileName }
+  })
 
-  return res.status(204).send()
+  return res.status(200).json({ restoredSections: normalizedSections, safetyBackupFileName })
 })
 
 if (process.env.NODE_ENV === 'production') {

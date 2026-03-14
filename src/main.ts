@@ -1,105 +1,270 @@
+// --- Missing constant definitions ---
+const ISSUE_DRAFT_KEY: string = "issue_draft";
+const DRAWN_DRAFT_KEY: string = "drawn_draft";
+const SESSION_KEY: string = "session";
+const SOFT_DELETE_TIMEOUT_MS: number = 8000;
+// --- End missing constant definitions ---
 import './style.css'
+
+// Declare app variable for UI rendering
+const app = document.getElementById('app') as HTMLElement;
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-
-const app = document.querySelector<HTMLDivElement>('#app')
-const SESSION_KEY = 'labsoft-session'
-const ISSUE_DRAFT_KEY = 'labsoft-issue-draft'
-const DRAWN_DRAFT_KEY = 'labsoft-drawn-draft'
-const SOFT_DELETE_TIMEOUT_MS = 8000
-
-if (!app) {
-  throw new Error('App root element not found')
+import { IssueRecord, DrawnRecord, Session, UserRole, ModuleKey } from './types'
+import { renderIssueTable } from './components/IssueTable'
+import { renderDrawnTable } from './components/DrawnTable'
+// Helper: Escape HTML for safe rendering
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+// --- Restore missing helpers ---
+// Helper: Normalize string for comparison
+function normalizeMasterKey(value: string): string {
+  return value.trim().toLowerCase();
 }
 
-type UserRole = 'admin' | 'staff'
-type ModuleKey = 'issue-entry' | 'issue-records' | 'drawn-entry' | 'drawn-records' | 'admin-panel'
-type RecordStatus = 'Pending' | 'In Progress' | 'Reported'
+// Helper: Parse comma-separated parameter values
+function parseParameterValueList(value: string): string[] {
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
 
-type LoginResponse = {
-  token: string
-  user: {
-    email: string
-    role: UserRole
+// Helper: Get initial parameter value from options
+function getInitialParameterValue(description: string, fallback: string): string {
+  const options = getParameterOptions(description);
+  if (fallback && options.some((item) => normalizeMasterKey(item) === normalizeMasterKey(fallback))) {
+    return fallback;
+  }
+  if (fallback && options.length === 0) {
+    return fallback;
+  }
+  return options[0] ?? '';
+}
+
+// Helper: Render parameter suggestion options
+function renderParameterSuggestionOptions(description: string): string {
+  return getParameterOptions(description)
+    .map((item) => `<option value="${escapeHtml(item)}"></option>`)
+    .join('');
+}
+
+// Helper: Render parameter choice buttons
+function renderParameterChoiceButtons(description: string): string {
+  const options = getParameterOptions(description);
+  if (!options.length) {
+    return '<p class="parameter-note">No parameter preset found for selected sample.</p>';
+  }
+  return options
+    .map((item) => `<button class="parameter-choice" data-parameter-choice="${escapeHtml(item)}" type="button">${escapeHtml(item)}</button>`)
+    .join('');
+}
+
+// Helper: Update parameter choice selection UI
+function updateParameterChoiceSelection(parameterChoices: HTMLDivElement | null, value: string): void {
+  if (!parameterChoices) return;
+  const selectedSet = new Set(parseParameterValueList(value).map((item) => normalizeMasterKey(item)));
+  const buttons = Array.from(parameterChoices.querySelectorAll<HTMLButtonElement>('[data-parameter-choice]'));
+  buttons.forEach((button) => {
+    const item = button.dataset.parameterChoice ?? '';
+    const isSelected = selectedSet.has(normalizeMasterKey(item));
+    button.classList.toggle('selected', isSelected);
+  });
+}
+
+// Helper: Get next serial number for records
+function getNextSerialNumber(records: Array<{ srNo: string }>): string {
+  let maxSerial = 0;
+  records.forEach((record) => {
+    const match = String(record.srNo).match(/(\d+)/);
+    if (match) {
+      const parsed = Number.parseInt(match[1], 10);
+      if (!Number.isNaN(parsed) && parsed > maxSerial) {
+        maxSerial = parsed;
+      }
+    }
+  });
+  return String(maxSerial + 1);
+}
+
+// Helper: Render sample description options
+function renderSampleDescriptionOptions(selectedDescription: string): string {
+  const descriptions: string[] = FALLBACK_TESTS.map((test: TestMasterTest) => test.description);
+  return descriptions
+    .map((desc: string) => `<option value="${escapeHtml(desc)}"${normalizeMasterKey(desc) === normalizeMasterKey(selectedDescription) ? ' selected' : ''}>${escapeHtml(desc)}</option>`)
+    .join('');
+}
+
+// Helper: Read numeric part from a string (for serial number sorting)
+function readNumericPart(value: string): number | null {
+  const match = value.match(/(\d+)/);
+  if (match) {
+    const parsed = Number.parseInt(match[1], 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+// --- End restored helpers ---
+// --- Restored missing helper functions and global variables ---
+// Helper: Get parameter options for a sample description
+function getParameterOptions(description: string): string[] {
+  const param = FALLBACK_PARAMETERS.find(
+    (item: TestMasterParameter) => normalizeMasterKey(item.parameterName) === normalizeMasterKey(description) || normalizeMasterKey(item.testId) === normalizeMasterKey(description)
+  );
+  if (param) {
+    return parseParameterValueList(param.parameterName);
+  }
+  // Try to match by description
+  const fallback = FALLBACK_PARAMETERS.find((item: TestMasterParameter) => normalizeMasterKey(item.parameterName).includes(normalizeMasterKey(description)));
+  if (fallback) {
+    return parseParameterValueList(fallback.parameterName);
+  }
+  return [];
+}
+
+// Helper: Set input value safely
+function setInputValue(input: HTMLInputElement | null, value: string): void {
+  if (input) {
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
   }
 }
+
+// Helper: Check if sample description requires ULR No.
+function requiresUlrNo(description: string): boolean {
+  const normalized = description.trim().toLowerCase();
+  return normalized.includes('drinking water') || normalized.includes('ground water');
+}
+// --- End restored helpers ---
+
+// Move initApp declaration before use
+// Declare initApp before use
+async function initApp(): Promise<void> {
+  const existingSession = getSession();
+  if (!existingSession) {
+    renderLogin('', 'replace');
+    return;
+  }
+  try {
+    const profile = await fetchCurrentUser(existingSession.token);
+    const nextSession: Session = {
+      token: existingSession.token,
+      email: profile.user.email,
+      name: profile.user.name,
+      role: profile.user.role,
+      userCode: profile.user.userCode
+    };
+    resetRecordFilters();
+    saveSession(nextSession);
+    try {
+      await loadUserDirectory(nextSession.token);
+    } catch {
+      setUserDirectory([]);
+    }
+    await loadRegisters(nextSession.token);
+    try {
+      await loadTestMaster(nextSession.token);
+    } catch {
+      setTestMaster([], []);
+    }
+    const initialView = getHashView();
+    if (initialView === 'login') {
+      renderDashboard(nextSession, 'issue-entry', 'replace');
+      return;
+    }
+    if (initialView && initialView !== 'admin-panel') {
+      renderDashboard(nextSession, initialView, 'replace');
+      return;
+    }
+    if (initialView === 'admin-panel' && nextSession.role === 'admin') {
+      try {
+        await loadAdminPanelData(nextSession.token);
+        adminMessage = '';
+        adminMessageState = '';
+      } catch (error) {
+        adminMessage = error instanceof Error ? error.message : 'Failed to load admin data.';
+        adminMessageState = 'error';
+      }
+      renderDashboard(nextSession, 'admin-panel', 'replace');
+      return;
+    }
+    renderDashboard(nextSession, 'issue-entry', 'replace');
+  } catch {
+    clearSession();
+    renderLogin('Session expired. Please login again.', 'replace');
+  }
+}
+
+// Duplicate declaration removed
+// ...existing code...
+
+// RecordStatus type removed
+
+// IssueRecord and DrawnRecord types are imported from types.ts
+
+type RegistersResponse = {
+  issueRecords: IssueRecord[];
+  drawnRecords: DrawnRecord[];
+};
+
+type StaffReceivingSource = {
+  srNo: string;
+  reportCode: string;
+  ulrNo: string;
+  sampleDescription: string;
+  parameterToBeTested: string;
+  issuedOn: string;
+  issuedBy: string;
+  issuedTo: string;
+  reportDueOn: string;
+};
+
+type TestMasterTest = {
+  id: string;
+  testName: string;
+  description: string;
+  displayOrder?: number;
+};
+
+type TestMasterParameter = {
+  id: string;
+  testId: string;
+  parameterName: string;
+  displayOrder?: number;
+};
+
+type TestMasterResponse = {
+  tests: TestMasterTest[];
+  parameters: TestMasterParameter[];
+};
+
+type LoginResponse = {
+  token: string;
+  user: {
+    email: string;
+    name?: string;
+    role: UserRole;
+    userCode: string;
+  };
+};
 
 type MeResponse = {
   user: {
-    email: string
-    role: UserRole
-  }
-}
-
-type Session = {
-  token: string
-  email: string
-  role: UserRole
-}
-
-type IssueRecord = {
-  id?: string
-  createdAt?: string
-  status: RecordStatus
-  srNo: string
-  codeNo: string
-  sampleDescription: string
-  parameterToBeTested: string
-  issuedOn: string
-  issuedBy: string
-  issuedTo: string
-  reportDueOn: string
-  receivedBy: string
-  reportedOn: string
-  reportedByRemarks: string
-}
-
-type DrawnRecord = {
-  id?: string
-  createdAt?: string
-  status: RecordStatus
-  srNo: string
-  sampleDescription: string
-  sampleDrawnOn: string
-  sampleDrawnBy: string
-  customerNameAddress: string
-  parameterToBeTested: string
-  reportDueOn: string
-  sampleReceivedBy: string
-}
-
-type RegistersResponse = {
-  issueRecords: IssueRecord[]
-  drawnRecords: DrawnRecord[]
-}
-
-type TestMasterTest = {
-  id: string
-  testName: string
-  description: string
-  displayOrder?: number
-}
-
-type TestMasterParameter = {
-  id: string
-  testId: string
-  parameterName: string
-  displayOrder?: number
-}
-
-type TestMasterResponse = {
-  tests: TestMasterTest[]
-  parameters: TestMasterParameter[]
-}
+    email: string;
+    name?: string;
+    role: UserRole;
+    userCode: string;
+  };
+};
 
 const FALLBACK_TESTS: TestMasterTest[] = [
   { id: 't1', testName: 'Ambient Air Quality Monitoring & Analysis (Extended)', description: 'Ambient Air Quality Monitoring & Analysis', displayOrder: 1 },
-  {
-    id: 't2',
-    testName: 'Ambient Air Quality Monitoring & Analysis (Basic)',
-    description: 'Ambient Air Quality Monitoring & Analysis (Basic)',
-    displayOrder: 2
-  },
+  { id: 't2', testName: 'Ambient Air Quality Monitoring & Analysis (Basic)', description: 'Ambient Air Quality Monitoring & Analysis (Basic)', displayOrder: 2 },
   { id: 't3', testName: 'Indoor Air', description: 'Indoor Air', displayOrder: 3 },
   { id: 't4', testName: 'Ambient Noise', description: 'Ambient Noise', displayOrder: 4 },
   { id: 't5', testName: 'Indoor Noise', description: 'Indoor Noise', displayOrder: 5 },
@@ -114,15 +279,10 @@ const FALLBACK_TESTS: TestMasterTest[] = [
   { id: 't10', testName: 'Ground Water Quality', description: 'Ground Water Quality', displayOrder: 14 },
   { id: 't11', testName: 'Surface Water Bodies', description: 'Surface Water Bodies', displayOrder: 15 },
   { id: 't12', testName: 'Soil Quality Test', description: 'Soil Quality Test', displayOrder: 16 }
-]
+];
 
 const FALLBACK_PARAMETERS: TestMasterParameter[] = [
-  {
-    id: 'p1',
-    testId: 't1',
-    parameterName: 'PM10, PM2.5, SO2, NO2, CO, Ammonia, Arsenic, Benzene, Lead, Nickel, Benzo(a)pyrene',
-    displayOrder: 1
-  },
+  { id: 'p1', testId: 't1', parameterName: 'PM10, PM2.5, SO2, NO2, CO, Ammonia, Arsenic, Benzene, Lead, Nickel, Benzo(a)pyrene', displayOrder: 1 },
   { id: 'p2', testId: 't2', parameterName: 'PM10, PM2.5, SO2, NO2, CO', displayOrder: 1 },
   { id: 'p3', testId: 't3', parameterName: 'PM, SO2, NO2, CO', displayOrder: 1 },
   { id: 'p4', testId: 't4', parameterName: 'Leq', displayOrder: 1 },
@@ -134,36 +294,18 @@ const FALLBACK_PARAMETERS: TestMasterParameter[] = [
   { id: 'p8c', testId: 't8c', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
   { id: 'p8d', testId: 't8d', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
   { id: 'p8e', testId: 't8e', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
-  {
-    id: 'p9',
-    testId: 't9',
-    parameterName: 'pH, Colour, Odour, Taste, Turbidity, TDS, Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate',
-    displayOrder: 1
-  },
-  {
-    id: 'p10',
-    testId: 't10',
-    parameterName: 'pH, Value, Colour, Odour, Taste, Turbidity, TDS, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)',
-    displayOrder: 1
-  },
-  {
-    id: 'p11',
-    testId: 't11',
-    parameterName: 'pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic',
-    displayOrder: 1
-  },
-  {
-    id: 'p12',
-    testId: 't12',
-    parameterName: 'Texture, Sand %, Clay %, Moisture %, Silt %, pH, Electrical Conductivity, Potassium, Sodium, Calcium, Magnesium, Sodium Absorption Ratio, Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Available Phosphorus, Organic Matter, Porosity',
-    displayOrder: 1
-  }
-]
+  { id: 'p9', testId: 't9', parameterName: 'pH, Colour, Odour, Taste, Turbidity, TDS, Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate', displayOrder: 1 },
+  { id: 'p10', testId: 't10', parameterName: 'pH, Value, Colour, Odour, Taste, Turbidity, TDS, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)', displayOrder: 1 },
+  { id: 'p11', testId: 't11', parameterName: 'pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic', displayOrder: 1 },
+  { id: 'p12', testId: 't12', parameterName: 'Texture, Sand %, Clay %, Moisture %, Silt %, pH, Electrical Conductivity, Potassium, Sodium, Calcium, Magnesium, Sodium Absorption Ratio, Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Available Phosphorus, Organic Matter, Porosity', displayOrder: 1 }
+];
 
 type AdminUser = {
   id: string
   email: string
+  name: string
   role: UserRole
+  userCode: string
   isActive: boolean
   createdAt: string
 }
@@ -194,6 +336,24 @@ type RegisterHistoryEntry = {
   recordId: string
   srNo: string
   createdAt: string
+}
+
+type BackupPreview = {
+  createdAt: string
+  createdBy: string
+  usersCount: number
+  issueRecordsCount: number
+  drawnRecordsCount: number
+  auditCount: number
+  registerHistoryCount: number
+  testMasterTestsCount: number
+  testMasterParametersCount: number
+}
+
+type UserDirectoryEntry = {
+  id: string
+  name: string
+  userCode: string
 }
 
 type RouteView = 'login' | ModuleKey
@@ -229,10 +389,18 @@ const adminAlerts: AdminAlert[] = []
 const adminAuditEntries: AuditEntry[] = []
 const adminRegisterHistoryEntries: RegisterHistoryEntry[] = []
 const adminBackups: string[] = []
+const userDirectory: UserDirectoryEntry[] = []
+let adminBackupPreview: BackupPreview | null = null
+let adminBackupPreviewFile = ''
+let adminRestoreSections: string[] = ['users', 'issueRecords', 'drawnRecords']
 const testMasterTests: TestMasterTest[] = []
 const testMasterParameters: TestMasterParameter[] = []
 let adminMessage = ''
 let adminMessageState: '' | 'error' = ''
+let issueFormMessage = ''
+let issueFormMessageState: '' | 'error' = ''
+let drawnFormMessage = ''
+let drawnFormMessageState: '' | 'error' = ''
 let activeSession: Session | null = null
 let currentView: RouteView | null = null
 let pendingDelete: PendingDelete | null = null
@@ -273,19 +441,124 @@ const updateUrlView = (view: RouteView, mode: 'push' | 'replace'): void => {
 }
 
 const normalizeRole = (role: unknown, email: string): UserRole => {
-  if (role === 'admin' || role === 'staff') {
+  if (role === 'admin' || role === 'staff' || role === 'customer') {
     return role
+  }
+
+  if (role === 'customer-care') {
+    return 'customer'
   }
 
   return email === 'admin@labsoft.dev' ? 'admin' : 'staff'
 }
 
+const getRoleLabel = (role: UserRole): string => {
+  if (role === 'staff') {
+    return 'Staff'
+  }
+
+  if (role === 'customer') {
+    return 'Customer Care'
+  }
+
+  return 'Admin'
+}
+
+// ...existing code...
+
+const getAssignedUserCode = (): string => {
+  if (!activeSession || activeSession.role === 'admin') {
+    return ''
+  }
+
+  return activeSession.userCode.trim()
+}
+
+const getAdminUserDisplayName = (user: AdminUser): string => {
+  const explicitName = String(user.name ?? '').trim()
+  if (explicitName) {
+    return explicitName
+  }
+
+  const email = String(user.email ?? '').trim()
+  if (!email.includes('@')) {
+    return email
+  }
+
+  return email.split('@')[0]
+}
+
+const getSessionDisplayName = (): string => {
+  const explicitName = String(activeSession?.name ?? '').trim()
+  if (explicitName) {
+    return explicitName
+  }
+
+  const email = String(activeSession?.email ?? '').trim()
+  if (!email.includes('@')) {
+    return email
+  }
+
+  return email.split('@')[0]
+}
+
+const getDirectoryUserDisplayName = (value: string): string => {
+  const normalizedValue = String(value ?? '').trim().toLowerCase()
+  if (!normalizedValue) {
+    return ''
+  }
+
+  const match = userDirectory.find((user) => user.userCode.trim().toLowerCase() === normalizedValue)
+  return match ? match.name : ''
+}
+
+const resolveUserDisplayByCode = (value: string): string => {
+  const normalizedValue = String(value ?? '').trim()
+  if (!normalizedValue) {
+    return ''
+  }
+
+  if (activeSession && activeSession.userCode.trim().toLowerCase() === normalizedValue.toLowerCase()) {
+    return getSessionDisplayName()
+  }
+
+  const matchedAdminUser = adminUsers.find(
+    (user) => String(user.userCode ?? '').trim().toLowerCase() === normalizedValue.toLowerCase()
+  )
+  if (matchedAdminUser) {
+    return getAdminUserDisplayName(matchedAdminUser)
+  }
+
+  const directoryName = getDirectoryUserDisplayName(normalizedValue)
+  if (directoryName) {
+    return directoryName
+  }
+
+  return normalizedValue
+}
+
+const enrichIssueRecord = (record: IssueRecord): IssueRecord => ({
+  ...record,
+  receivedByName: record.receivedByName?.trim() || resolveUserDisplayByCode(record.receivedBy)
+})
+
+const enrichDrawnRecord = (record: DrawnRecord): DrawnRecord => ({
+  ...record,
+  sampleReceivedByName: record.sampleReceivedByName?.trim() || resolveUserDisplayByCode(record.sampleReceivedBy)
+})
+
+const getIssueReceivedByLabel = (record: IssueRecord): string =>
+  record.receivedByName?.trim() || resolveUserDisplayByCode(record.receivedBy)
+
+const getDrawnReceivedByLabel = (record: DrawnRecord): string =>
+  record.sampleReceivedByName?.trim() || resolveUserDisplayByCode(record.sampleReceivedBy)
+
 const setIssueRecords = (records: IssueRecord[]): void => {
-  issueRecords.splice(0, issueRecords.length, ...records)
+  issueRecords.splice(0, issueRecords.length, ...records.map(enrichIssueRecord))
 }
 
 const setDrawnRecords = (records: DrawnRecord[]): void => {
-  drawnRecords.splice(0, drawnRecords.length, ...records)
+  drawnRecords.splice(0, drawnRecords.length, ...records.map(enrichDrawnRecord))
 }
 
 const setAdminUsers = (users: AdminUser[]): void => {
@@ -308,170 +581,55 @@ const setAdminBackups = (backups: string[]): void => {
   adminBackups.splice(0, adminBackups.length, ...backups)
 }
 
+const setUserDirectory = (users: UserDirectoryEntry[]): void => {
+  userDirectory.splice(0, userDirectory.length, ...users)
+}
+
+const setAdminBackupPreview = (fileName: string, preview: BackupPreview | null): void => {
+  adminBackupPreviewFile = fileName
+  adminBackupPreview = preview
+}
+
 const setTestMaster = (tests: TestMasterTest[], parameters: TestMasterParameter[]): void => {
-  const hasTests = Array.isArray(tests) && tests.length > 0
-  const hasParameters = Array.isArray(parameters) && parameters.length > 0
-
-  testMasterTests.splice(0, testMasterTests.length, ...(hasTests ? tests : FALLBACK_TESTS))
-  testMasterParameters.splice(0, testMasterParameters.length, ...(hasParameters ? parameters : FALLBACK_PARAMETERS))
+  testMasterTests.splice(0, testMasterTests.length, ...tests);
+  testMasterParameters.splice(0, testMasterParameters.length, ...parameters);
 }
 
-const normalizeMasterKey = (value: string): string => value.trim().toLowerCase()
+const toggleParameterSelection = (parameterInput: HTMLInputElement, parameterValue: string): void => {
+  const selected = parseParameterValueList(parameterInput.value)
+  const targetKey = normalizeMasterKey(parameterValue)
+  const existingIndex = selected.findIndex((item) => normalizeMasterKey(item) === targetKey)
 
-const getParameterOptions = (description: string): string[] => {
-  const match = testMasterTests.find((item) => normalizeMasterKey(item.description) === normalizeMasterKey(description))
-  if (!match) {
-    return []
+  if (existingIndex >= 0) {
+    selected.splice(existingIndex, 1)
+  } else {
+    selected.push(parameterValue)
   }
 
-  const raw = testMasterParameters
-    .filter((item) => item.testId === match.id)
-    .sort((first, second) => (first.displayOrder ?? 0) - (second.displayOrder ?? 0))
-    .map((item) => item.parameterName.trim())
-    .filter(Boolean)
-
-  const normalizedSeen = new Set<string>()
-  const options: string[] = []
-
-  raw.forEach((entry) => {
-    const key = normalizeMasterKey(entry)
-    if (normalizedSeen.has(key)) {
-      return
-    }
-
-    normalizedSeen.add(key)
-    options.push(entry)
-  })
-
-  return options
+  parameterInput.value = selected.join(', ')
 }
 
-const renderSampleDescriptionOptions = (selectedDescription: string): string => {
-  const normalizedSelected = normalizeMasterKey(selectedDescription)
-  const sortedTests = testMasterTests
-    .slice()
-    .sort((first, second) => (first.displayOrder ?? 0) - (second.displayOrder ?? 0))
-  const hasSelectedInMaster = sortedTests.some((item) => normalizeMasterKey(item.description) === normalizedSelected)
-
-  const options = sortedTests
-    .map((item) => {
-      const selected = normalizeMasterKey(item.description) === normalizedSelected ? 'selected' : ''
-      return `<option value="${escapeHtml(item.description)}" ${selected}>${escapeHtml(item.description)}</option>`
-    })
-    .join('')
-
-  if (selectedDescription && !hasSelectedInMaster) {
-    return `<option value="${escapeHtml(selectedDescription)}" selected>${escapeHtml(selectedDescription)}</option>${options}`
-  }
-
-  return options
-}
-
-const readNumericPart = (value: string): number | null => {
-  const match = String(value).match(/(\d+)/)
-  if (!match) {
-    return null
-  }
-
-  const parsed = Number.parseInt(match[1], 10)
-  return Number.isNaN(parsed) ? null : parsed
-}
-
-const getNextSerialNumber = (records: Array<{ srNo: string }>): string => {
-  let maxSerial = 0
-
-  records.forEach((record) => {
-    const numeric = readNumericPart(record.srNo)
-    if (numeric && numeric > maxSerial) {
-      maxSerial = numeric
-    }
-  })
-
-  return String(maxSerial + 1)
-}
-
-const setInputValue = (input: HTMLInputElement | null, value: string): void => {
-  if (!input) {
-    return
-  }
-
-  input.value = value
-}
-
-const MANUAL_PARAMETER_VALUE = '__manual__'
-
-const hasParameterInMaster = (description: string, value: string): boolean => {
-  if (!value) {
-    return false
-  }
-
-  const normalizedValue = normalizeMasterKey(value)
-  return getParameterOptions(description).some((item) => normalizeMasterKey(item) === normalizedValue)
-}
-
-const getInitialParameterValue = (description: string, fallback: string): string => {
-  const options = getParameterOptions(description)
-  if (fallback && options.some((item) => normalizeMasterKey(item) === normalizeMasterKey(fallback))) {
-    return fallback
-  }
-
-  if (fallback && options.length === 0) {
-    return fallback
-  }
-
-  return options[0] ?? ''
-}
-
-const renderParameterOptions = (description: string, selectedValue: string): string => {
-  const options = getParameterOptions(description)
-  const normalizedSelected = normalizeMasterKey(selectedValue)
-  const hasSelected = options.some((item) => normalizeMasterKey(item) === normalizedSelected)
-
-  const mapped = options
-    .map((item) => {
-      const selected = normalizeMasterKey(item) === normalizedSelected ? 'selected' : ''
-      return `<option value="${escapeHtml(item)}" ${selected}>${escapeHtml(item)}</option>`
-    })
-    .join('')
-
-  if (selectedValue && !hasSelected) {
-    return `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(selectedValue)}</option>${mapped}`
-  }
-
-  return mapped
-}
-
-const syncParameterSelectOptions = (
+const syncParameterInputOptions = (
   descriptionSelect: HTMLSelectElement | null,
-  parameterSelect: HTMLSelectElement | null,
+  parameterInput: HTMLInputElement | null,
+  parameterSuggestions: HTMLDataListElement | null,
+  parameterChoices: HTMLDivElement | null,
   preserveExisting: boolean
 ): void => {
-  if (!descriptionSelect || !parameterSelect) {
+  if (!descriptionSelect || !parameterInput || !parameterSuggestions || !parameterChoices) {
     return
   }
 
-  const currentValue = preserveExisting ? parameterSelect.value : ''
-  const manualInput = parameterSelect
-    .closest('form')
-    ?.querySelector<HTMLInputElement>('input[name="parameterManual"]')
-  const manualValue = manualInput?.value.trim() ?? ''
-  const keepManualSelection =
-    preserveExisting &&
-    (currentValue === MANUAL_PARAMETER_VALUE ||
-      (currentValue && !hasParameterInMaster(descriptionSelect.value, currentValue) && Boolean(manualValue)))
+  const currentValue = preserveExisting ? parameterInput.value.trim() : ''
   const nextValue = getInitialParameterValue(descriptionSelect.value, currentValue)
-  const optionsMarkup = renderParameterOptions(descriptionSelect.value, nextValue)
+  parameterSuggestions.innerHTML = renderParameterSuggestionOptions(descriptionSelect.value)
+  parameterChoices.innerHTML = renderParameterChoiceButtons(descriptionSelect.value)
 
-  parameterSelect.innerHTML = `<option value="">Select parameter</option>${optionsMarkup}<option value="${MANUAL_PARAMETER_VALUE}">Manual Entry</option>`
-
-  if (keepManualSelection) {
-    parameterSelect.value = MANUAL_PARAMETER_VALUE
-    return
+  if (!preserveExisting || !currentValue) {
+    parameterInput.value = nextValue
   }
 
-  if (nextValue) {
-    parameterSelect.value = nextValue
-  }
+  updateParameterChoiceSelection(parameterChoices, parameterInput.value)
 }
 
 const getInitialIssueSrNo = (editing: IssueRecord | undefined): string => {
@@ -501,6 +659,26 @@ const getInitialDrawnSrNo = (editing: DrawnRecord | undefined): string => {
   return getNextSerialNumber(drawnRecords)
 }
 
+const getNextDrawnUlrNo = (): string => {
+  // Only increment for drinking water/ground water in TC-819826000000XXXF series
+  const ulrPrefix = 'TC-819826000000';
+  const ulrSuffix = 'F';
+  let maxNumber = 0;
+  const allRecords = [...drawnRecords, ...issueRecords];
+  for (const record of allRecords) {
+    const ulr = String(record.ulrNo ?? '').trim();
+    if (!ulr.startsWith(ulrPrefix) || !ulr.endsWith(ulrSuffix)) {
+      continue;
+    }
+    const numericPart = ulr.slice(ulrPrefix.length, ulr.length - ulrSuffix.length);
+    const parsed = Number.parseInt(numericPart, 10);
+    if (!Number.isNaN(parsed) && parsed > maxNumber) {
+      maxNumber = parsed;
+    }
+  }
+  return `${ulrPrefix}${String(maxNumber + 1).padStart(3, '0')}${ulrSuffix}`;
+}
+
 const renderSampleDescriptionSelect = (selectedDescription: string, label: string): string => {
   return `
     <label class="field-group"><span>${label}</span>
@@ -513,18 +691,18 @@ const renderSampleDescriptionSelect = (selectedDescription: string, label: strin
 }
 
 const renderAutoParameterField = (description: string, value: string, label: string): string => {
-  const manualSelected = Boolean(value) && !hasParameterInMaster(description, value)
-  const selectedValue = manualSelected ? '' : value
   return `
     <label class="field-group"><span>${label}</span>
-      <select name="parameterToBeTested" required>
-        <option value="">Select parameter</option>
-        ${renderParameterOptions(description, selectedValue)}
-        <option value="${MANUAL_PARAMETER_VALUE}" ${manualSelected ? 'selected' : ''}>Manual Entry</option>
-      </select>
-    </label>
-    <label class="field-group manual-parameter ${manualSelected ? '' : 'hidden'}"><span>Manual Parameter</span>
-      <input name="parameterManual" value="${escapeHtml(manualSelected ? value : '')}" placeholder="Enter full test parameter set" ${manualSelected ? 'required' : ''} />
+      <input name="parameterToBeTested" list="parameter-suggestions" value="${escapeHtml(value)}" placeholder="Select or type parameter" required />
+      <datalist id="parameter-suggestions">
+        ${renderParameterSuggestionOptions(description)}
+      </datalist>
+      <div class="parameter-actions">
+        <button class="parameter-clear" data-parameter-clear type="button">Clear All</button>
+      </div>
+      <div class="parameter-choices" data-parameter-choices>
+        ${renderParameterChoiceButtons(description)}
+      </div>
     </label>
   `
 }
@@ -533,8 +711,12 @@ const renderAutoSerialField = (value: string, readonly: boolean, label = 'Sr.No.
   return `<label class="field-group"><span>${label}</span><input name="srNo" value="${escapeHtml(value)}" required ${readonly ? 'readonly' : ''} /></label>`
 }
 
-const renderAutoCodeField = (value: string): string => {
-  return `<label class="field-group"><span>Code No.</span><input name="codeNo" value="${escapeHtml(value)}" required /></label>`
+const renderReadonlyTextField = (name: string, label: string, value: string, required = false): string => {
+  return `<label class="field-group"><span>${label}</span><input name="${name}" value="${escapeHtml(value)}" ${required ? 'required' : ''} readonly /></label>`
+}
+
+const renderAutoCodeField = (value: string, readonly = false, showLoadButton = true): string => {
+  return `<label class="field-group"><span>Report Code</span><input name="codeNo" value="${escapeHtml(value)}" required ${readonly ? 'readonly' : ''} /> ${showLoadButton ? '<button type="button" id="loadByReportCodeBtn">Load</button>' : ''}</label>`
 }
 
 const renderSectionHint = (text: string): string => `<p class="draft-note">${text}</p>`
@@ -551,8 +733,47 @@ const getIssueParameterValue = (editing: IssueRecord | undefined, draft: Partial
   return getInitialParameterValue(description, editing?.parameterToBeTested ?? draft.parameterToBeTested ?? '')
 }
 
+const getIssueUlrValue = (editing: IssueRecord | undefined, draft: Partial<IssueRecord>, description: string): string => {
+  const directValue = String(editing?.ulrNo ?? draft.ulrNo ?? '').trim()
+  if (directValue) {
+    return directValue
+  }
+
+  if (!requiresUlrNo(description)) {
+    return ''
+  }
+
+  return ''
+}
+
 const getDrawnParameterValue = (editing: DrawnRecord | undefined, draft: Partial<DrawnRecord>, description: string): string => {
   return getInitialParameterValue(description, editing?.parameterToBeTested ?? draft.parameterToBeTested ?? '')
+}
+
+const getDrawnReportCodeValue = (editing: DrawnRecord | undefined, draft: Partial<DrawnRecord>): string => {
+  if (editing?.reportCode?.trim()) {
+    return editing.reportCode.trim()
+  }
+
+  const draftReportCode = String(draft.reportCode ?? '').trim()
+  if (draftReportCode) {
+    return draftReportCode
+  }
+
+  return ''
+}
+
+const getDrawnUlrValue = (editing: DrawnRecord | undefined, draft: Partial<DrawnRecord>, description: string): string => {
+  if (!requiresUlrNo(description)) {
+    return ''
+  }
+
+  const directValue = String(editing?.ulrNo ?? draft.ulrNo ?? '').trim()
+  if (directValue) {
+    return directValue
+  }
+
+  return getNextDrawnUlrNo()
 }
 
 const shouldReadonlyAutoField = (isEditing: boolean): boolean => !isEditing
@@ -560,85 +781,156 @@ const shouldReadonlyAutoField = (isEditing: boolean): boolean => !isEditing
 const syncAutoIssueFields = (form: HTMLFormElement, isEditing: boolean): void => {
   const srNoInput = form.querySelector<HTMLInputElement>('input[name="srNo"]')
   const descriptionSelect = form.querySelector<HTMLSelectElement>('select[name="sampleDescription"]')
-  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+  const parameterInput = form.querySelector<HTMLInputElement>('input[name="parameterToBeTested"]')
+  const parameterSuggestions = form.querySelector<HTMLDataListElement>('#parameter-suggestions')
+  const parameterChoices = form.querySelector<HTMLDivElement>('[data-parameter-choices]')
 
   if (!isEditing && !srNoInput?.value.trim()) {
     setInputValue(srNoInput, getNextSerialNumber(issueRecords))
   }
 
-  syncParameterSelectOptions(descriptionSelect, parameterSelect, true)
+  syncParameterInputOptions(descriptionSelect, parameterInput, parameterSuggestions, parameterChoices, true)
 }
 
 const syncAutoDrawnFields = (form: HTMLFormElement, isEditing: boolean): void => {
   const srNoInput = form.querySelector<HTMLInputElement>('input[name="srNo"]')
   const descriptionSelect = form.querySelector<HTMLSelectElement>('select[name="sampleDescription"]')
-  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+  const parameterInput = form.querySelector<HTMLInputElement>('input[name="parameterToBeTested"]')
+  const parameterSuggestions = form.querySelector<HTMLDataListElement>('#parameter-suggestions')
+  const parameterChoices = form.querySelector<HTMLDivElement>('[data-parameter-choices]')
 
   if (!isEditing && !srNoInput?.value.trim()) {
     setInputValue(srNoInput, getNextSerialNumber(drawnRecords))
   }
 
-  syncParameterSelectOptions(descriptionSelect, parameterSelect, true)
+  syncParameterInputOptions(descriptionSelect, parameterInput, parameterSuggestions, parameterChoices, true)
 }
 
 const bindIssueAutoEvents = (form: HTMLFormElement, isEditing: boolean): void => {
   void isEditing
-  const descriptionSelect = form.querySelector<HTMLSelectElement>('select[name="sampleDescription"]')
-  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+  const descriptionField = form.querySelector<HTMLInputElement | HTMLSelectElement>('[name="sampleDescription"]')
+  const parameterInput = form.querySelector<HTMLInputElement>('input[name="parameterToBeTested"]')
+  const parameterSuggestions = form.querySelector<HTMLDataListElement>('#parameter-suggestions')
+  const parameterChoices = form.querySelector<HTMLDivElement>('[data-parameter-choices]')
+  const clearParameterButton = form.querySelector<HTMLButtonElement>('[data-parameter-clear]')
+  const ulrGroup = form.querySelector<HTMLLabelElement>('[data-ulr-group]')
+  const ulrInput = form.querySelector<HTMLInputElement>('input[name="ulrNo"]')
 
-  descriptionSelect?.addEventListener('change', () => {
-    syncParameterSelectOptions(descriptionSelect, parameterSelect, false)
-    syncManualParameterUi(form)
+  const syncUlrField = (): void => {
+    const needsUlr = requiresUlrNo(descriptionField?.value ?? '')
+    ulrGroup?.classList.toggle('hidden', !needsUlr)
+
+    if (!ulrInput) {
+      return
+    }
+
+    ulrInput.required = needsUlr
+    if (!needsUlr) {
+      ulrInput.value = ''
+    }
+  }
+
+  if (descriptionField instanceof HTMLSelectElement) {
+    descriptionField.addEventListener('change', () => {
+      syncParameterInputOptions(descriptionField, parameterInput, parameterSuggestions, parameterChoices, false)
+      syncUlrField()
+    })
+  }
+
+  // Event delegation for parameter choice buttons
+  form.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement;
+    const button = target.closest<HTMLButtonElement>('[data-parameter-choice]');
+    if (!button || !parameterInput) return;
+    event.preventDefault();
+    const parameterValue = button.dataset.parameterChoice ?? '';
+    if (!parameterValue) return;
+    toggleParameterSelection(parameterInput, parameterValue);
+    updateParameterChoiceSelection(parameterChoices, parameterInput.value);
+  });
+
+  parameterInput?.addEventListener('input', () => {
+    updateParameterChoiceSelection(parameterChoices, parameterInput.value)
   })
 
-  parameterSelect?.addEventListener('change', () => {
-    syncManualParameterUi(form)
-  })
+  clearParameterButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (!parameterInput) {
+      return;
+    }
+
+    parameterInput.value = '';
+    updateParameterChoiceSelection(parameterChoices, parameterInput.value);
+  });
+
+  syncUlrField()
 }
 
 const bindDrawnAutoEvents = (form: HTMLFormElement, isEditing: boolean): void => {
   void isEditing
   const descriptionSelect = form.querySelector<HTMLSelectElement>('select[name="sampleDescription"]')
-  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
+  const parameterInput = form.querySelector<HTMLInputElement>('input[name="parameterToBeTested"]')
+  const parameterSuggestions = form.querySelector<HTMLDataListElement>('#parameter-suggestions')
+  const parameterChoices = form.querySelector<HTMLDivElement>('[data-parameter-choices]')
+  const clearParameterButton = form.querySelector<HTMLButtonElement>('[data-parameter-clear]')
+  const ulrGroup = form.querySelector<HTMLLabelElement>('[data-drawn-ulr-group]')
+  const ulrInput = form.querySelector<HTMLInputElement>('input[name="ulrNo"]')
+
+  const syncUlrField = (): void => {
+    const needsUlr = requiresUlrNo(descriptionSelect?.value ?? '')
+    ulrGroup?.classList.toggle('hidden', !needsUlr)
+
+    if (!ulrInput) {
+      return
+    }
+
+    ulrInput.required = needsUlr
+    if (!needsUlr) {
+      ulrInput.value = ''
+      return
+    }
+
+    if (!ulrInput.value.trim()) {
+      ulrInput.value = getNextDrawnUlrNo()
+    }
+  }
 
   descriptionSelect?.addEventListener('change', () => {
-    syncParameterSelectOptions(descriptionSelect, parameterSelect, false)
-    syncManualParameterUi(form)
+    syncParameterInputOptions(descriptionSelect, parameterInput, parameterSuggestions, parameterChoices, false)
+    syncUlrField()
   })
 
-  parameterSelect?.addEventListener('change', () => {
-    syncManualParameterUi(form)
+  // Event delegation for parameter choice buttons
+  form.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement;
+    const button = target.closest<HTMLButtonElement>('[data-parameter-choice]');
+    if (!button || !parameterInput) return;
+    event.preventDefault();
+    const parameterValue = button.dataset.parameterChoice ?? '';
+    if (!parameterValue) return;
+    toggleParameterSelection(parameterInput, parameterValue);
+    updateParameterChoiceSelection(parameterChoices, parameterInput.value);
+  });
+
+  parameterInput?.addEventListener('input', () => {
+    updateParameterChoiceSelection(parameterChoices, parameterInput.value)
   })
-}
 
-const syncManualParameterUi = (form: HTMLFormElement): void => {
-  const parameterSelect = form.querySelector<HTMLSelectElement>('select[name="parameterToBeTested"]')
-  const manualWrapper = form.querySelector<HTMLLabelElement>('.manual-parameter')
-  const manualInput = form.querySelector<HTMLInputElement>('input[name="parameterManual"]')
+  clearParameterButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (!parameterInput) {
+      return;
+    }
 
-  if (!parameterSelect || !manualWrapper || !manualInput) {
-    return
-  }
+    parameterInput.value = '';
+    updateParameterChoiceSelection(parameterChoices, parameterInput.value);
+  });
 
-  const manualMode = parameterSelect.value === MANUAL_PARAMETER_VALUE
-  manualWrapper.classList.toggle('hidden', !manualMode)
-
-  if (manualMode) {
-    manualInput.required = true
-    return
-  }
-
-  manualInput.required = false
-  manualInput.value = ''
+  syncUlrField()
 }
 
 const getResolvedParameterValue = (formData: FormData, getter: (formData: FormData, name: string) => string): string => {
-  const selectedParameter = getter(formData, 'parameterToBeTested')
-  if (selectedParameter === MANUAL_PARAMETER_VALUE) {
-    return getter(formData, 'parameterManual')
-  }
-
-  return selectedParameter
+  return getter(formData, 'parameterToBeTested')
 }
 
 const syncIssueDraftFromAutoFields = (form: HTMLFormElement): void => {
@@ -679,6 +971,10 @@ const ensureIssueAutoDefaults = (payload: IssueRecord): IssueRecord => {
     nextPayload.parameterToBeTested = getInitialParameterValue(nextPayload.sampleDescription, '')
   }
 
+  if (!requiresUlrNo(nextPayload.sampleDescription)) {
+    nextPayload.ulrNo = ''
+  }
+
   return nextPayload
 }
 
@@ -693,12 +989,16 @@ const ensureDrawnAutoDefaults = (payload: DrawnRecord): DrawnRecord => {
     nextPayload.parameterToBeTested = getInitialParameterValue(nextPayload.sampleDescription, '')
   }
 
+  if (!requiresUlrNo(nextPayload.sampleDescription)) {
+    nextPayload.ulrNo = ''
+  }
+
   return nextPayload
 }
 
-const getIssueDraftOrEditing = (editing: IssueRecord | undefined): Partial<IssueRecord> => (editing ? {} : readDraft<IssueRecord>(ISSUE_DRAFT_KEY))
+const getIssueDraftOrEditing = (editing: IssueRecord | undefined): Partial<Record<string, unknown>> => (editing ? {} : readDraft<Record<string, unknown>>(ISSUE_DRAFT_KEY))
 
-const getDrawnDraftOrEditing = (editing: DrawnRecord | undefined): Partial<DrawnRecord> => (editing ? {} : readDraft<DrawnRecord>(DRAWN_DRAFT_KEY))
+const getDrawnDraftOrEditing = (editing: DrawnRecord | undefined): Partial<Record<string, unknown>> => (editing ? {} : readDraft<Record<string, unknown>>(DRAWN_DRAFT_KEY))
 
 const getIssueFormInitialValues = (editing: IssueRecord | undefined): {
   issueDraft: Partial<IssueRecord>
@@ -706,28 +1006,34 @@ const getIssueFormInitialValues = (editing: IssueRecord | undefined): {
   codeNoValue: string
   descriptionValue: string
   parameterValue: string
+  ulrValue: string
 } => {
   const issueDraft = getIssueDraftOrEditing(editing)
   const srNoValue = getInitialIssueSrNo(editing)
-  const codeNoValue = getInitialIssueCodeNo(editing, issueDraft.codeNo)
+  const codeNoValue = getInitialIssueCodeNo(editing, typeof issueDraft.codeNo === 'string' ? issueDraft.codeNo : undefined)
   const descriptionValue = getIssueDescriptionValue(editing, issueDraft)
   const parameterValue = getIssueParameterValue(editing, issueDraft, descriptionValue)
+  const ulrValue = getIssueUlrValue(editing, issueDraft, descriptionValue)
 
-  return { issueDraft, srNoValue, codeNoValue, descriptionValue, parameterValue }
+  return { issueDraft, srNoValue, codeNoValue, descriptionValue, parameterValue, ulrValue }
 }
 
 const getDrawnFormInitialValues = (editing: DrawnRecord | undefined): {
   drawnDraft: Partial<DrawnRecord>
   srNoValue: string
+  reportCodeValue: string
   descriptionValue: string
   parameterValue: string
+  ulrValue: string
 } => {
   const drawnDraft = getDrawnDraftOrEditing(editing)
   const srNoValue = getInitialDrawnSrNo(editing)
+  const reportCodeValue = getDrawnReportCodeValue(editing, drawnDraft)
   const descriptionValue = getDrawnDescriptionValue(editing, drawnDraft)
   const parameterValue = getDrawnParameterValue(editing, drawnDraft, descriptionValue)
+  const ulrValue = getDrawnUlrValue(editing, drawnDraft, descriptionValue)
 
-  return { drawnDraft, srNoValue, descriptionValue, parameterValue }
+  return { drawnDraft, srNoValue, reportCodeValue, descriptionValue, parameterValue, ulrValue }
 }
 
 const renderIssueAutoFields = (
@@ -735,13 +1041,24 @@ const renderIssueAutoFields = (
   codeNoValue: string,
   descriptionValue: string,
   parameterValue: string,
-  isEditing: boolean
+  isEditing: boolean,
+  lockAutofillFields: boolean,
+  lockReportCodeField: boolean
 ): string => {
+  if (lockAutofillFields) {
+    return [
+      renderAutoSerialField(srNoValue, true),
+      renderAutoCodeField(codeNoValue, lockReportCodeField, !lockReportCodeField),
+      renderReadonlyTextField('sampleDescription', 'Sample Description', descriptionValue, true),
+      renderReadonlyTextField('parameterToBeTested', 'Parameter to Be Tested', parameterValue, true)
+    ].join('')
+  }
+
   return [
     renderAutoSerialField(srNoValue, shouldReadonlyAutoField(isEditing)),
     renderAutoCodeField(codeNoValue),
     renderSampleDescriptionSelect(descriptionValue, 'Sample Description'),
-    renderAutoParameterField(descriptionValue, parameterValue, 'Parameter to be tested')
+    renderAutoParameterField(descriptionValue, parameterValue, 'Parameter to Be Tested')
   ].join('')
 }
 
@@ -762,13 +1079,11 @@ const renderDraftHint = (isEditing: boolean): string => (isEditing ? '' : render
 
 const initializeIssueAutoUi = (form: HTMLFormElement, isEditing: boolean): void => {
   syncAutoIssueFields(form, isEditing)
-  syncManualParameterUi(form)
   bindIssueAutoEvents(form, isEditing)
 }
 
 const initializeDrawnAutoUi = (form: HTMLFormElement, isEditing: boolean): void => {
   syncAutoDrawnFields(form, isEditing)
-  syncManualParameterUi(form)
   bindDrawnAutoEvents(form, isEditing)
 }
 
@@ -776,13 +1091,14 @@ const readIssuePayloadFromForm = (formData: FormData): IssueRecord => {
   return ensureIssueAutoDefaults({
     srNo: getIssueFieldValue(formData, 'srNo'),
     codeNo: getIssueFieldValue(formData, 'codeNo'),
-    status: normalizeRecordStatus(formData.get('status')),
+    ulrNo: getIssueFieldValue(formData, 'ulrNo'),
     sampleDescription: getIssueFieldValue(formData, 'sampleDescription'),
     parameterToBeTested: getResolvedParameterValue(formData, getIssueFieldValue),
     issuedOn: getIssueFieldValue(formData, 'issuedOn'),
     issuedBy: getIssueFieldValue(formData, 'issuedBy'),
     issuedTo: getIssueFieldValue(formData, 'issuedTo'),
     reportDueOn: getIssueFieldValue(formData, 'reportDueOn'),
+    // status field removed
     receivedBy: getIssueFieldValue(formData, 'receivedBy'),
     reportedOn: getIssueFieldValue(formData, 'reportedOn'),
     reportedByRemarks: getIssueFieldValue(formData, 'reportedByRemarks')
@@ -792,7 +1108,8 @@ const readIssuePayloadFromForm = (formData: FormData): IssueRecord => {
 const readDrawnPayloadFromForm = (formData: FormData): DrawnRecord => {
   return ensureDrawnAutoDefaults({
     srNo: getDrawnFieldValue(formData, 'srNo'),
-    status: normalizeRecordStatus(formData.get('status')),
+    reportCode: getDrawnFieldValue(formData, 'reportCode'),
+    ulrNo: getDrawnFieldValue(formData, 'ulrNo'),
     sampleDescription: getDrawnFieldValue(formData, 'sampleDescription'),
     sampleDrawnOn: getDrawnFieldValue(formData, 'sampleDrawnOn'),
     sampleDrawnBy: getDrawnFieldValue(formData, 'sampleDrawnBy'),
@@ -809,7 +1126,7 @@ const syncIssueDraftPayload = (form: HTMLFormElement): Record<string, string> =>
   return {
     srNo: getIssueFieldValue(draftData, 'srNo'),
     codeNo: getIssueFieldValue(draftData, 'codeNo'),
-    status: getIssueFieldValue(draftData, 'status'),
+    ulrNo: getIssueFieldValue(draftData, 'ulrNo'),
     sampleDescription: getIssueFieldValue(draftData, 'sampleDescription'),
     parameterToBeTested: getResolvedParameterValue(draftData, getIssueFieldValue),
     issuedOn: getIssueFieldValue(draftData, 'issuedOn'),
@@ -819,6 +1136,7 @@ const syncIssueDraftPayload = (form: HTMLFormElement): Record<string, string> =>
     receivedBy: getIssueFieldValue(draftData, 'receivedBy'),
     reportedOn: getIssueFieldValue(draftData, 'reportedOn'),
     reportedByRemarks: getIssueFieldValue(draftData, 'reportedByRemarks')
+    // status field removed
   }
 }
 
@@ -827,7 +1145,8 @@ const syncDrawnDraftPayload = (form: HTMLFormElement): Record<string, string> =>
   const draftData = new FormData(form)
   return {
     srNo: getDrawnFieldValue(draftData, 'srNo'),
-    status: getDrawnFieldValue(draftData, 'status'),
+    reportCode: getDrawnFieldValue(draftData, 'reportCode'),
+    ulrNo: getDrawnFieldValue(draftData, 'ulrNo'),
     sampleDescription: getDrawnFieldValue(draftData, 'sampleDescription'),
     sampleDrawnOn: getDrawnFieldValue(draftData, 'sampleDrawnOn'),
     sampleDrawnBy: getDrawnFieldValue(draftData, 'sampleDrawnBy'),
@@ -849,13 +1168,7 @@ const toDateValue = (value: string): number => {
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
+// ...existing code...
 
 const escapeCsv = (value: string): string => `"${String(value).replace(/"/g, '""')}"`
 
@@ -918,43 +1231,48 @@ const getTodayLocalDateKey = (): string => {
   return `${year}-${month}-${day}`
 }
 
-const normalizeRecordStatus = (value: unknown, fallback: RecordStatus = 'Pending'): RecordStatus => {
-  if (value === 'Pending' || value === 'In Progress' || value === 'Reported') {
-    return value
+const getIssueStatus = (record: IssueRecord): 'Pending' | 'In Progress' | 'Reported' => {
+  if (record.status === 'Pending' || record.status === 'In Progress' || record.status === 'Reported') {
+    return record.status
   }
 
-  return fallback
+  return String(record.reportedOn ?? '').trim() ? 'Reported' : 'Pending'
 }
 
-const getIssueStatus = (record: IssueRecord): RecordStatus => {
-  return normalizeRecordStatus(record.status, record.reportedOn.trim() ? 'Reported' : 'Pending')
+const toIssueRecordWithStatus = (record: IssueRecord, status: 'Pending' | 'In Progress' | 'Reported'): IssueRecord => {
+  const nextRecord: IssueRecord = {
+    ...record,
+    status
+  }
+
+  if (status === 'Reported') {
+    nextRecord.reportedOn = String(nextRecord.reportedOn ?? '').trim() || getTodayLocalDateKey()
+    return nextRecord
+  }
+
+  nextRecord.reportedOn = ''
+  return nextRecord
 }
 
-const getDrawnStatus = (record: DrawnRecord): RecordStatus => {
-  return normalizeRecordStatus(record.status, 'Pending')
-}
-
-const isOverdue = (dueOn: string, status: RecordStatus, completedOn = ''): boolean => {
-  if (!dueOn || status === 'Reported' || completedOn.trim()) {
+const isOverdue = (dueOn: string, completedOn = ''): boolean => {
+  if (!dueOn || completedOn.trim()) {
     return false
   }
-
   const dueTime = toLocalDateValue(dueOn)
   if (!dueTime) {
     return false
   }
-
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return dueTime < today.getTime()
+  today.setHours(0, 0, 0, 0);
+  return dueTime < today.getTime();
 }
 
 const getActivityStats = (): { totalEntries: number; overdueEntries: number; todayEntries: number } => {
   const today = getTodayLocalDateKey()
   const issueToday = issueRecords.filter((record) => toLocalDateKey(record.createdAt ?? record.issuedOn) === today).length
   const drawnToday = drawnRecords.filter((record) => toLocalDateKey(record.createdAt ?? record.sampleDrawnOn) === today).length
-  const issueOverdue = issueRecords.filter((record) => isOverdue(record.reportDueOn, getIssueStatus(record), record.reportedOn)).length
-  const drawnOverdue = drawnRecords.filter((record) => isOverdue(record.reportDueOn, getDrawnStatus(record))).length
+  const issueOverdue = issueRecords.filter((record) => isOverdue(record.reportDueOn, record.reportedOn)).length
+  const drawnOverdue = drawnRecords.filter((record) => isOverdue(record.reportDueOn)).length
 
   return {
     totalEntries: issueRecords.length + drawnRecords.length,
@@ -986,18 +1304,84 @@ const hasIssueDuplicate = (record: IssueRecord, excludeId = ''): string | null =
 
 const hasDrawnDuplicate = (record: DrawnRecord, excludeId = ''): string | null => {
   const srNo = record.srNo.trim().toLowerCase()
+  const reportCode = String(record.reportCode ?? '').trim().toLowerCase()
 
   const duplicate = drawnRecords.find((entry) => entry.id !== excludeId && entry.srNo.trim().toLowerCase() === srNo)
   if (!duplicate) {
-    return null
+    const duplicateByReportCode = reportCode
+      ? drawnRecords.find(
+          (entry) => entry.id !== excludeId && String(entry.reportCode ?? '').trim().toLowerCase() === reportCode
+        )
+      : null
+
+    if (!duplicateByReportCode) {
+      return null
+    }
+
+    return `Duplicate Report Code found: ${record.reportCode}`
   }
 
   return `Duplicate Sr.No. found: ${record.srNo}`
 }
 
+const getSampleCategoryLabel = (sampleDescription: string): 'Air' | 'Water' | 'Soil' | 'Noise' | '' => {
+  const description = sampleDescription.trim().toLowerCase()
+  if (description.includes('air')) {
+    return 'Air'
+  }
+  if (description.includes('water')) {
+    return 'Water'
+  }
+  if (description.includes('soil')) {
+    return 'Soil'
+  }
+  if (description.includes('noise')) {
+    return 'Noise'
+  }
+  return ''
+}
+
+const isValidDateField = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value.trim())
+
+const validateIssuePayload = (record: IssueRecord): string | null => {
+  if (!record.srNo.trim()) return 'Sr.No. is required.'
+  if (!record.codeNo.trim()) return 'Code No. is required.'
+  if (!record.sampleDescription.trim()) return 'Sample description is required.'
+  if (!getSampleCategoryLabel(record.sampleDescription)) return 'Sample category must include Air, Water, Soil, or Noise.'
+  if (!record.parameterToBeTested.trim()) return 'Parameter to be tested is required.'
+  if (!record.issuedOn.trim() || !isValidDateField(record.issuedOn)) return 'Issued On must be a valid date.'
+  if (!record.issuedBy.trim()) return 'Issued By is required.'
+  if (!record.issuedTo.trim()) return 'Issued To is required.'
+  if (!record.reportDueOn.trim() || !isValidDateField(record.reportDueOn)) return 'Report Due On must be a valid date.'
+  if (!record.receivedBy.trim()) return 'Received By is required.'
+  if (record.reportedOn.trim() && !isValidDateField(record.reportedOn)) return 'Reported On must be a valid date.'
+  if (toDateValue(record.reportDueOn) < toDateValue(record.issuedOn)) return 'Report Due On cannot be earlier than Issued On.'
+  if (record.reportedOn.trim() && toDateValue(record.reportedOn) < toDateValue(record.issuedOn)) {
+    return 'Reported On cannot be earlier than Issued On.'
+  }
+  return hasIssueDuplicate(record, issueEditingId)
+}
+
+const validateDrawnPayload = (record: DrawnRecord): string | null => {
+  if (!record.srNo.trim()) return 'Sr.No. is required.'
+  if (!String(record.reportCode ?? '').trim()) return 'Report Code is required.'
+  if (!record.sampleDescription.trim()) return 'Sample description is required.'
+  if (!getSampleCategoryLabel(record.sampleDescription)) return 'Sample category must include Air, Water, Soil, or Noise.'
+  if (!record.sampleDrawnOn.trim() || !isValidDateField(record.sampleDrawnOn)) return 'Sample Drawn On must be a valid date.'
+  if (!record.sampleDrawnBy.trim()) return 'Sample Drawn By is required.'
+  if (!record.customerNameAddress.trim()) return 'Customer Name & Address is required.'
+  if (!record.parameterToBeTested.trim()) return 'Parameter to be tested is required.'
+  if (!record.reportDueOn.trim() || !isValidDateField(record.reportDueOn)) return 'Report Due On must be a valid date.'
+  if (!record.sampleReceivedBy.trim()) return 'Sample Received By is required.'
+  if (toDateValue(record.reportDueOn) < toDateValue(record.sampleDrawnOn)) {
+    return 'Report Due On cannot be earlier than Sample Drawn On.'
+  }
+  return hasDrawnDuplicate(record, drawnEditingId)
+}
+
 const pdfLogoPath = '/ultra-lab-logo.png'
-const ISSUE_PDF_TABLE_WIDTH = 198
-const DRAWN_PDF_TABLE_WIDTH = 184
+const ISSUE_PDF_TABLE_WIDTH = 276
+const DRAWN_PDF_TABLE_WIDTH = 276
 const pdfLogoCache = new Map<string, { dataUrl: string; width: number; height: number }>()
 
 const getPdfLogoAsset = async (alpha = 1): Promise<{ dataUrl: string; width: number; height: number }> => {
@@ -1078,34 +1462,36 @@ const downloadIssueRegisterPdf = async (records: IssueRecord[]): Promise<void> =
   pdf.setTextColor(20, 20, 20)
   pdf.setFont('times', 'bold')
   pdf.setFontSize(12)
-  pdf.text('ULTRA TESTING & RESEARCH LABORATORY', 148.5, 13, { align: 'center' })
+  pdf.text('Ultratest Laboratory Private Limited', 148.5, 13, { align: 'center' })
   pdf.setFontSize(11)
-  pdf.text('SAMPLE ISSUE REGISTER', 148.5, 19, { align: 'center' })
+  pdf.text('SAMPLE ISSUE', 148.5, 19, { align: 'center' })
 
   const headers = [
     'Sr.No.',
     'Code No.',
+    'ULR No.',
     'Sample Description',
-    'Parameter to be tested',
+    'Parameter to Be Tested',
     'Issued On',
     'Issued By',
     'Issued To',
     'Report Due On',
     'Received By',
     'Reported On',
-    'ReportedBy/R\nremarks'
+    'Reported By/\nRemarks'
   ]
 
   const rows = records.map((record) => [
     record.srNo,
     record.codeNo,
+    record.ulrNo ?? '',
     record.sampleDescription,
     record.parameterToBeTested,
     record.issuedOn,
     record.issuedBy,
     record.issuedTo,
     record.reportDueOn,
-    record.receivedBy,
+    getIssueReceivedByLabel(record),
     record.reportedOn,
     record.reportedByRemarks
   ])
@@ -1119,12 +1505,13 @@ const downloadIssueRegisterPdf = async (records: IssueRecord[]): Promise<void> =
     theme: 'grid',
     styles: {
       font: 'times',
-      fontSize: 7,
+      fontSize: 6.6,
       cellPadding: 1.2,
       lineColor: [70, 70, 70],
       lineWidth: 0.1,
       textColor: [20, 20, 20],
-      valign: 'middle'
+      valign: 'middle',
+      overflow: 'linebreak'
     },
     headStyles: {
       font: 'times',
@@ -1135,17 +1522,18 @@ const downloadIssueRegisterPdf = async (records: IssueRecord[]): Promise<void> =
       lineWidth: 0.1
     },
     columnStyles: {
-      0: { cellWidth: 12 },
-      1: { cellWidth: 14 },
-      2: { cellWidth: 24 },
-      3: { cellWidth: 36 },
-      4: { cellWidth: 14 },
-      5: { cellWidth: 13 },
-      6: { cellWidth: 13 },
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 24, halign: 'center' },
+      2: { cellWidth: 30, halign: 'center' },
+      3: { cellWidth: 29 },
+      4: { cellWidth: 36 },
+      5: { cellWidth: 16, halign: 'center' },
+      6: { cellWidth: 16 },
       7: { cellWidth: 16 },
-      8: { cellWidth: 14 },
-      9: { cellWidth: 14 },
-      10: { cellWidth: 28 }
+      8: { cellWidth: 18, halign: 'center' },
+      9: { cellWidth: 19 },
+      10: { cellWidth: 16, halign: 'center' },
+      11: { cellWidth: 26 }
     }
   })
 
@@ -1163,14 +1551,16 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
   pdf.setTextColor(20, 20, 20)
   pdf.setFont('times', 'bold')
   pdf.setFontSize(12)
-  pdf.text('ULTRA TESTING & RESEARCH LABORATORY', 148.5, 13, { align: 'center' })
+  pdf.text('Ultratest Laboratory Private Limited', 148.5, 13, { align: 'center' })
   pdf.setFontSize(11)
-  pdf.text('SAMPLE RECEIVING REGISTER', 148.5, 19, { align: 'center' })
+  pdf.text('SAMPLE RECEIVING', 148.5, 19, { align: 'center' })
 
   const headers = [
     'Sr.No.',
+    'Report Code',
+    'ULR No.',
     'Sample Description',
-    'Sample Drawn on',
+    'Sample Drawn On',
     'Sample Drawn By',
     'Customer Name &\nAddress',
     'Parameter to be\nTested',
@@ -1180,13 +1570,15 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
 
   const rows = records.map((record) => [
     record.srNo,
+    record.reportCode ?? '',
+    record.ulrNo ?? '',
     record.sampleDescription,
     record.sampleDrawnOn,
     record.sampleDrawnBy,
     record.customerNameAddress,
     record.parameterToBeTested,
     record.reportDueOn,
-    record.sampleReceivedBy
+    getDrawnReceivedByLabel(record)
   ])
 
   autoTable(pdf, {
@@ -1198,12 +1590,13 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
     theme: 'grid',
     styles: {
       font: 'times',
-      fontSize: 7.2,
+      fontSize: 6.8,
       cellPadding: 1.2,
       lineColor: [70, 70, 70],
       lineWidth: 0.1,
       textColor: [20, 20, 20],
-      valign: 'middle'
+      valign: 'middle',
+      overflow: 'linebreak'
     },
     headStyles: {
       font: 'times',
@@ -1214,14 +1607,16 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
       lineWidth: 0.1
     },
     columnStyles: {
-      0: { cellWidth: 12 },
-      1: { cellWidth: 24 },
-      2: { cellWidth: 20 },
-      3: { cellWidth: 18 },
-      4: { cellWidth: 34 },
-      5: { cellWidth: 34 },
-      6: { cellWidth: 18 },
-      7: { cellWidth: 24 }
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 28, halign: 'center' },
+      2: { cellWidth: 32, halign: 'center' },
+      3: { cellWidth: 28 },
+      4: { cellWidth: 18, halign: 'center' },
+      5: { cellWidth: 18 },
+      6: { cellWidth: 37 },
+      7: { cellWidth: 39 },
+      8: { cellWidth: 18, halign: 'center' },
+      9: { cellWidth: 24 }
     }
   })
 
@@ -1229,9 +1624,9 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
 }
 
 const toIssueCreatePayload = (record: IssueRecord): IssueRecord => ({
-  status: getIssueStatus(record),
   srNo: record.srNo,
   codeNo: record.codeNo,
+  ulrNo: record.ulrNo ?? '',
   sampleDescription: record.sampleDescription,
   parameterToBeTested: record.parameterToBeTested,
   issuedOn: record.issuedOn,
@@ -1244,8 +1639,9 @@ const toIssueCreatePayload = (record: IssueRecord): IssueRecord => ({
 })
 
 const toDrawnCreatePayload = (record: DrawnRecord): DrawnRecord => ({
-  status: getDrawnStatus(record),
   srNo: record.srNo,
+  reportCode: record.reportCode ?? '',
+  ulrNo: record.ulrNo ?? '',
   sampleDescription: record.sampleDescription,
   sampleDrawnOn: record.sampleDrawnOn,
   sampleDrawnBy: record.sampleDrawnBy,
@@ -1287,6 +1683,35 @@ const resetDrawnFilters = (): void => {
   drawnCategoryFilter = 'All'
 }
 
+const resetRecordFilters = (): void => {
+  resetIssueFilters()
+  resetDrawnFilters()
+}
+
+const compareBySrNo = (first: { srNo: string }, second: { srNo: string }): number => {
+  const firstNumeric = readNumericPart(first.srNo)
+  const secondNumeric = readNumericPart(second.srNo)
+
+  if (firstNumeric !== null && secondNumeric !== null && firstNumeric !== secondNumeric) {
+    return firstNumeric - secondNumeric
+  }
+
+  return first.srNo.localeCompare(second.srNo, undefined, { numeric: true, sensitivity: 'base' })
+}
+
+const resequenceClientRecords = <T extends { id?: string; srNo: string }>(records: T[]): void => {
+  const nextSerialById = new Map(
+    [...records]
+      .sort(compareBySrNo)
+      .map((record, index) => [String(record.id ?? `${record.srNo}-${index}`), String(index + 1)])
+  )
+
+  records.forEach((record, index) => {
+    const fallbackKey = String(record.id ?? `${record.srNo}-${index}`)
+    record.srNo = nextSerialById.get(fallbackKey) ?? record.srNo
+  })
+}
+
 const downloadCsv = (fileName: string, headers: string[], rows: string[][]): void => {
   const csv = [headers, ...rows].map((row) => row.map((item) => escapeCsv(item)).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -1305,7 +1730,7 @@ const getFilteredIssueRecords = (): IssueRecord[] => {
   const parameterFilter = issueParameterFilter.trim().toLowerCase()
   const categoryFilter = issueCategoryFilter.trim().toLowerCase()
 
-  return issueRecords.filter((record) => {
+  const filtered = issueRecords.filter((record) => {
     const dateValue = toDateValue(record.issuedOn)
     const from = issueFromDate ? toDateValue(issueFromDate) : 0
     const to = issueToDate ? toDateValue(issueToDate) : Number.MAX_SAFE_INTEGER
@@ -1322,6 +1747,8 @@ const getFilteredIssueRecords = (): IssueRecord[] => {
     const serial = record.srNo.toLowerCase()
     return inDateRange && matchesIssuedBy && matchesIssuedTo && matchesParameter && matchesSelectedCategory && serial.includes(query)
   })
+
+  return filtered.sort(compareBySrNo)
 }
 
 const getFilteredDrawnRecords = (): DrawnRecord[] => {
@@ -1331,7 +1758,7 @@ const getFilteredDrawnRecords = (): DrawnRecord[] => {
   const parameterFilter = drawnParameterFilter.trim().toLowerCase()
   const categoryFilter = drawnCategoryFilter.trim().toLowerCase()
 
-  return drawnRecords.filter((record) => {
+  const filtered = drawnRecords.filter((record) => {
     const dateValue = toDateValue(record.sampleDrawnOn)
     const from = drawnFromDate ? toDateValue(drawnFromDate) : 0
     const to = drawnToDate ? toDateValue(drawnToDate) : Number.MAX_SAFE_INTEGER
@@ -1348,6 +1775,8 @@ const getFilteredDrawnRecords = (): DrawnRecord[] => {
     const serial = record.srNo.toLowerCase()
     return inDateRange && matchesDrawnBy && matchesCustomer && matchesParameter && matchesSelectedCategory && serial.includes(query)
   })
+
+  return filtered.sort(compareBySrNo)
 }
 
 const saveSession = (session: Session): void => {
@@ -1355,7 +1784,7 @@ const saveSession = (session: Session): void => {
 }
 
 const clearSession = (): void => {
-  localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(SESSION_KEY);
 }
 
 const getSession = (): Session | null => {
@@ -1369,7 +1798,11 @@ const getSession = (): Session | null => {
     if (!parsed.token || !parsed.email) {
       return null
     }
-    return parsed
+    return {
+      ...parsed,
+      userCode: String((parsed as { userCode?: unknown }).userCode ?? '').trim(),
+      name: String((parsed as { name?: unknown }).name ?? '').trim()
+    }
   } catch {
     return null
   }
@@ -1411,7 +1844,9 @@ const authenticate = async (email: string, password: string): Promise<LoginRespo
     token: body.token,
     user: {
       email: body.user.email,
-      role: normalizeRole(body.user.role, body.user.email)
+      name: String(body.user.name ?? '').trim(),
+      role: normalizeRole(body.user.role, body.user.email),
+      userCode: String(body.user.userCode ?? '').trim()
     }
   }
 }
@@ -1431,13 +1866,16 @@ const fetchCurrentUser = async (token: string): Promise<MeResponse> => {
   return {
     user: {
       email: body.user.email,
-      role: normalizeRole(body.user.role, body.user.email)
+      name: String(body.user.name ?? '').trim(),
+      role: normalizeRole(body.user.role, body.user.email),
+      userCode: String(body.user.userCode ?? '').trim()
     }
   }
 }
 
 const loadRegisters = async (token: string): Promise<void> => {
   const response = await fetch('/api/registers', {
+    cache: 'no-store',
     headers: {
       Authorization: `Bearer ${token}`
     }
@@ -1448,18 +1886,26 @@ const loadRegisters = async (token: string): Promise<void> => {
     throw new Error(body.message ?? 'Failed to load registers.')
   }
 
-  const nextIssueRecords = (Array.isArray(body.issueRecords) ? body.issueRecords : []).map((record) => ({
-    ...record,
-    status: normalizeRecordStatus(record.status, String(record.reportedOn ?? '').trim() ? 'Reported' : 'Pending')
-  }))
-
-  const nextDrawnRecords = (Array.isArray(body.drawnRecords) ? body.drawnRecords : []).map((record) => ({
-    ...record,
-    status: normalizeRecordStatus(record.status, 'Pending')
-  }))
+  const nextIssueRecords = Array.isArray(body.issueRecords) ? body.issueRecords : []
+  const nextDrawnRecords = Array.isArray(body.drawnRecords) ? body.drawnRecords : []
 
   setIssueRecords(nextIssueRecords)
   setDrawnRecords(nextDrawnRecords)
+}
+
+const loadUserDirectory = async (token: string): Promise<void> => {
+  const response = await fetch('/api/user-directory', {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+
+  const body = await readJsonSafe<{ users?: UserDirectoryEntry[]; message?: string }>(response)
+  if (!response.ok) {
+    throw new Error(body.message ?? 'Failed to load user directory.')
+  }
+
+  setUserDirectory(Array.isArray(body.users) ? body.users : [])
 }
 
 const loadTestMaster = async (token: string): Promise<void> => {
@@ -1576,6 +2022,21 @@ const deleteDrawnRecordApi = async (token: string, recordId: string): Promise<vo
   }
 }
 
+const fetchStaffReceivingByReportCode = async (token: string, reportCode: string): Promise<StaffReceivingSource> => {
+  const response = await fetch(`/api/staff/receiving-by-report-code/${encodeURIComponent(reportCode)}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+
+  const body = await readJsonSafe<{ message?: string; record?: StaffReceivingSource }>(response)
+  if (!response.ok || !body.record) {
+    throw new Error(body.message ?? 'No receiving entry found for this Report Code.')
+  }
+
+  return body.record
+}
+
 const loadAdminPanelData = async (token: string): Promise<void> => {
   const [usersResponse, alertsResponse, auditResponse, historyResponse, backupResponse] = await Promise.all([
     fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }),
@@ -1620,7 +2081,10 @@ const loadAdminPanelData = async (token: string): Promise<void> => {
   setAdminBackups(Array.isArray(backupBody.backups) ? backupBody.backups : [])
 }
 
-const createAdminUser = async (token: string, payload: { email: string; password: string; role: UserRole }): Promise<void> => {
+const createAdminUser = async (
+  token: string,
+  payload: { email: string; name: string; password: string; role: UserRole; userCode: string }
+): Promise<void> => {
   const response = await fetch('/api/admin/users', {
     method: 'POST',
     headers: {
@@ -1668,6 +2132,20 @@ const resetAdminUserPassword = async (token: string, userId: string, password: s
   }
 }
 
+const deleteAdminUser = async (token: string, userId: string): Promise<void> => {
+  const response = await fetch(`/api/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+
+  if (!response.ok) {
+    const body = await readJsonSafe<{ message?: string }>(response)
+    throw new Error(body.message ?? 'Failed to delete user.')
+  }
+}
+
 const createBackup = async (token: string): Promise<string> => {
   const response = await fetch('/api/admin/backup', {
     method: 'POST',
@@ -1684,37 +2162,59 @@ const createBackup = async (token: string): Promise<string> => {
   return body.fileName
 }
 
-const restoreBackup = async (token: string, fileName: string): Promise<void> => {
+const fetchBackupPreview = async (token: string, fileName: string): Promise<BackupPreview> => {
+  const response = await fetch(`/api/admin/backups/${encodeURIComponent(fileName)}/preview`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+
+  const body = await readJsonSafe<{ preview?: BackupPreview; message?: string }>(response)
+  if (!response.ok || !body.preview) {
+    throw new Error(body.message ?? 'Failed to load backup preview.')
+  }
+
+  return body.preview
+}
+
+const restoreBackup = async (token: string, fileName: string, sections: string[]): Promise<{ safetyBackupFileName: string }> => {
   const response = await fetch('/api/admin/restore', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ fileName })
+    body: JSON.stringify({ fileName, sections })
   })
 
+  const body = await readJsonSafe<{ message?: string; safetyBackupFileName?: string }>(response)
+
   if (!response.ok) {
-    const body = await readJsonSafe<{ message?: string }>(response)
     throw new Error(body.message ?? 'Failed to restore backup.')
   }
+
+  if (!body.safetyBackupFileName) {
+    throw new Error(body.message ?? 'Failed to restore backup.')
+  }
+
+  return { safetyBackupFileName: body.safetyBackupFileName }
 }
 
 const getModuleLabel = (module: ModuleKey): string => {
   if (module === 'issue-entry') {
-    return 'Sample Issue Register (Entry)'
+    return 'Sample Issue (Entry)'
   }
 
   if (module === 'issue-records') {
-    return 'Sample Issue Register (Records)'
+    return 'Sample Issue (Records)'
   }
 
   if (module === 'drawn-entry') {
-    return 'Sample Receiving Register (Entry)'
+    return 'Sample Receiving (Entry)'
   }
 
   if (module === 'drawn-records') {
-    return 'Sample Receiving Register (Records)'
+    return 'Sample Receiving (Records)'
   }
 
   return 'Admin Panel'
@@ -1722,161 +2222,50 @@ const getModuleLabel = (module: ModuleKey): string => {
 
 const getMenuItems = (role: UserRole): ModuleKey[] => {
   if (role === 'admin') {
-    return ['issue-entry', 'issue-records', 'drawn-entry', 'drawn-records', 'admin-panel']
+    return ['drawn-entry', 'drawn-records', 'issue-entry', 'issue-records', 'admin-panel']
   }
-
-  return ['issue-entry', 'issue-records', 'drawn-entry', 'drawn-records']
+  if (role === 'customer') {
+    return ['drawn-entry', 'drawn-records', 'issue-entry', 'issue-records']
+  }
+  return ['issue-entry', 'issue-records']
 }
 
-const renderIssueTable = (canDelete: boolean): string => {
-  const filtered = getFilteredIssueRecords()
+// ...existing code...
 
-  if (filtered.length === 0) {
-    return '<p class="empty-state">No entries yet.</p>'
-  }
-
-  return `
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Sr.No.</th>
-            <th>Code No.</th>
-            <th>Status</th>
-            <th>Sample Description</th>
-            <th>Parameter to be tested</th>
-            <th>Issued On</th>
-            <th>Issued By</th>
-            <th>Issued To</th>
-            <th>Report Due On</th>
-            <th>Received By</th>
-            <th>Reported On</th>
-            <th>ReportedBy/Remarks</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filtered
-            .map(
-              (item, index) => {
-                const status = getIssueStatus(item)
-                const overdue = isOverdue(item.reportDueOn, status, item.reportedOn)
-                return `
-            <tr class="${overdue ? 'row-overdue' : ''}">
-              <td>${index + 1}</td>
-              <td>${escapeHtml(item.codeNo)}</td>
-              <td><span class="status-chip status-${status.toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(status)}</span></td>
-              <td>${escapeHtml(item.sampleDescription)}</td>
-              <td>${escapeHtml(item.parameterToBeTested)}</td>
-              <td>${escapeHtml(item.issuedOn)}</td>
-              <td>${escapeHtml(item.issuedBy)}</td>
-              <td>${escapeHtml(item.issuedTo)}</td>
-              <td><span class="due-chip ${overdue ? 'overdue' : ''}">${escapeHtml(item.reportDueOn)}${overdue ? ' • Overdue' : ''}</span></td>
-              <td>${escapeHtml(item.receivedBy)}</td>
-              <td>${escapeHtml(item.reportedOn)}</td>
-              <td>${escapeHtml(item.reportedByRemarks)}</td>
-              <td class="actions-col">
-                <button class="table-action edit" data-issue-edit="${escapeHtml(item.id ?? '')}" type="button">Edit</button>
-                ${canDelete ? `<button class="table-action delete" data-issue-delete="${escapeHtml(item.id ?? '')}" type="button">Delete</button>` : ''}
-              </td>
-            </tr>
-          `
-              }
-            )
-            .join('')}
-        </tbody>
-      </table>
-    </div>
-  `
-}
-
-const renderDrawnTable = (canDelete: boolean): string => {
-  const filtered = getFilteredDrawnRecords()
-
-  if (filtered.length === 0) {
-    return '<p class="empty-state">No entries yet.</p>'
-  }
-
-  return `
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Sr.No.</th>
-            <th>Status</th>
-            <th>Sample Description</th>
-            <th>Sample Drawn on</th>
-            <th>Sample Drawn By</th>
-            <th>Customer Name & Address</th>
-            <th>Parameter to be Tested</th>
-            <th>Report Due On</th>
-            <th>Sample Received By</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filtered
-            .map(
-              (item, index) => {
-                const status = getDrawnStatus(item)
-                const overdue = isOverdue(item.reportDueOn, status)
-                return `
-            <tr class="${overdue ? 'row-overdue' : ''}">
-              <td>${index + 1}</td>
-              <td><span class="status-chip status-${status.toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(status)}</span></td>
-              <td>${escapeHtml(item.sampleDescription)}</td>
-              <td>${escapeHtml(item.sampleDrawnOn)}</td>
-              <td>${escapeHtml(item.sampleDrawnBy)}</td>
-              <td>${escapeHtml(item.customerNameAddress)}</td>
-              <td>${escapeHtml(item.parameterToBeTested)}</td>
-              <td><span class="due-chip ${overdue ? 'overdue' : ''}">${escapeHtml(item.reportDueOn)}${overdue ? ' • Overdue' : ''}</span></td>
-              <td>${escapeHtml(item.sampleReceivedBy)}</td>
-              <td class="actions-col">
-                <button class="table-action edit" data-drawn-edit="${escapeHtml(item.id ?? '')}" type="button">Edit</button>
-                ${canDelete ? `<button class="table-action delete" data-drawn-delete="${escapeHtml(item.id ?? '')}" type="button">Delete</button>` : ''}
-              </td>
-            </tr>
-          `
-              }
-            )
-            .join('')}
-        </tbody>
-      </table>
-    </div>
-  `
-}
+// ...existing code...
 
 const renderIssueEntryModule = (): string => {
   const editing = issueEditingId ? issueRecords.find((item) => item.id === issueEditingId) : undefined
-  const { issueDraft, srNoValue, codeNoValue, descriptionValue, parameterValue } = getIssueFormInitialValues(editing)
-  const issueStatus = editing
-    ? getIssueStatus(editing)
-    : normalizeRecordStatus(issueDraft.status, issueDraft.reportedOn ? 'Reported' : 'Pending')
+  const { issueDraft, srNoValue, codeNoValue, descriptionValue, parameterValue, ulrValue } = getIssueFormInitialValues(editing)
+  const assignedUserCode = getAssignedUserCode()
+  const isStaffIssueFlow = activeSession?.role === 'staff'
+  const isAutofillLocked = isStaffIssueFlow
+  const isReportCodeLocked = isStaffIssueFlow && Boolean(editing)
+  const receivedByValue = isStaffIssueFlow ? assignedUserCode || editing?.receivedBy || issueDraft.receivedBy || '' : editing?.receivedBy || issueDraft.receivedBy || ''
+  const receivedByReadonly = isStaffIssueFlow && Boolean(assignedUserCode)
+  const showUlrField = requiresUlrNo(descriptionValue) || Boolean(ulrValue.trim())
 
   return `
     <section class="module-card">
       <div class="register-head">
-        <p class="register-lab">ULTRA TESTING & RESEARCH LABORATORY</p>
-        <h3>SAMPLE ISSUE REGISTER</h3>
+        <p class="register-lab">Ultratest Laboratory Private Limited</p>
+        <h3>SAMPLE ISSUE</h3>
         <p class="register-note">Maintain issue, due, and reporting trail for each sample entry.</p>
       </div>
+      ${issueFormMessage ? `<p class="message" data-state="${issueFormMessageState}">${escapeHtml(issueFormMessage)}</p>` : ''}
       <form id="issue-form" class="data-form" novalidate>
-        ${renderIssueAutoFields(srNoValue, codeNoValue, descriptionValue, parameterValue, Boolean(editing))}
+        ${renderIssueAutoFields(srNoValue, codeNoValue, descriptionValue, parameterValue, Boolean(editing), isAutofillLocked, isReportCodeLocked)}
+        ${isAutofillLocked ? renderSectionHint(`Report-code linked fields are view only${isReportCodeLocked ? ' while editing' : ''}.`) : ''}
         ${renderIssueDefaultDescriptionMessage(descriptionValue)}
+        <label class="field-group ${showUlrField ? '' : 'hidden'}" data-ulr-group><span>ULR No.</span><input name="ulrNo" value="${escapeHtml(ulrValue)}" ${showUlrField ? 'required' : ''} ${isAutofillLocked ? 'readonly' : ''} /></label>
         <label class="field-group"><span>Issued On</span><input name="issuedOn" type="date" value="${escapeHtml(editing?.issuedOn ?? issueDraft.issuedOn ?? '')}" required /></label>
         <label class="field-group"><span>Issued By</span><input name="issuedBy" value="${escapeHtml(editing?.issuedBy ?? issueDraft.issuedBy ?? '')}" required /></label>
         <label class="field-group"><span>Issued To</span><input name="issuedTo" value="${escapeHtml(editing?.issuedTo ?? issueDraft.issuedTo ?? '')}" required /></label>
-        <label class="field-group"><span>Status</span>
-          <select name="status" required>
-            <option value="Pending" ${issueStatus === 'Pending' ? 'selected' : ''}>Pending</option>
-            <option value="In Progress" ${issueStatus === 'In Progress' ? 'selected' : ''}>In Progress</option>
-            <option value="Reported" ${issueStatus === 'Reported' ? 'selected' : ''}>Reported</option>
-          </select>
-        </label>
         <label class="field-group"><span>Report Due On</span><input name="reportDueOn" type="date" value="${escapeHtml(editing?.reportDueOn ?? issueDraft.reportDueOn ?? '')}" required /></label>
-        <label class="field-group"><span>Received By</span><input name="receivedBy" value="${escapeHtml(editing?.receivedBy ?? issueDraft.receivedBy ?? '')}" required /></label>
+        <!-- Status field removed -->
+        <label class="field-group"><span>Received By</span><input name="receivedBy" value="${escapeHtml(receivedByValue)}" ${receivedByReadonly ? 'readonly' : ''} required /></label>
         <label class="field-group"><span>Reported On</span><input name="reportedOn" type="date" value="${escapeHtml(editing?.reportedOn ?? issueDraft.reportedOn ?? '')}" /></label>
-        <label class="field-group"><span>ReportedBy/Remarks</span><input name="reportedByRemarks" value="${escapeHtml(editing?.reportedByRemarks ?? issueDraft.reportedByRemarks ?? '')}" /></label>
+        <label class="field-group"><span>Reported By/Remarks</span><input name="reportedByRemarks" value="${escapeHtml(editing?.reportedByRemarks ?? issueDraft.reportedByRemarks ?? '')}" /></label>
         <div class="form-actions">
           <button class="primary-btn" type="submit">${editing ? 'Update Entry' : 'Add Entry'}</button>
           ${editing ? '<button id="issue-cancel-edit" class="secondary-btn light" type="button">Cancel Edit</button>' : ''}
@@ -1888,12 +2277,13 @@ const renderIssueEntryModule = (): string => {
 }
 
 const renderIssueRecordsModule = (): string => {
+  const canManageIssueRecords = activeSession?.role === 'admin' || activeSession?.role === 'staff' || activeSession?.role === 'customer'
   return `
     <section class="module-card records-page">
       <div class="register-head">
-        <p class="register-lab">ULTRA TESTING & RESEARCH LABORATORY</p>
-        <h3>SAMPLE ISSUE REGISTER RECORDS</h3>
-        <p class="register-note">All issued sample entries with full status trail.</p>
+        <p class="register-lab">Ultratest Laboratory Private Limited</p>
+        <h3>SAMPLE ISSUE RECORDS</h3>
+        <p class="register-note">All issued sample entries with complete reporting details.</p>
       </div>
       <div class="module-toolbar">
         <input id="issue-search" placeholder="Search by Sr.No." value="${escapeHtml(issueSearch)}" />
@@ -1915,38 +2305,36 @@ const renderIssueRecordsModule = (): string => {
         <button id="issue-export" class="secondary-btn light" type="button">Export CSV</button>
         <button id="issue-export-pdf" class="secondary-btn light" type="button">Export PDF</button>
       </div>
-      ${renderIssueTable(activeSession?.role === 'admin')}
+      ${renderIssueTable(getFilteredIssueRecords(), canManageIssueRecords, canManageIssueRecords, activeSession?.role === 'admin')}
     </section>
   `
 }
 
 const renderDrawnEntryModule = (): string => {
   const editing = drawnEditingId ? drawnRecords.find((item) => item.id === drawnEditingId) : undefined
-  const { drawnDraft, srNoValue, descriptionValue, parameterValue } = getDrawnFormInitialValues(editing)
-  const drawnStatus = editing ? getDrawnStatus(editing) : normalizeRecordStatus(drawnDraft.status, 'Pending')
+  const { drawnDraft, srNoValue, reportCodeValue, descriptionValue, parameterValue, ulrValue } = getDrawnFormInitialValues(editing)
+  const sampleReceivedByValue = editing?.sampleReceivedByName || editing?.sampleReceivedBy || drawnDraft.sampleReceivedBy || ''
+  const sampleReceivedByReadonly = false
+  const showUlrField = requiresUlrNo(descriptionValue)
 
   return `
     <section class="module-card">
       <div class="register-head">
-        <p class="register-lab">ULTRA TESTING & RESEARCH LABORATORY</p>
-        <h3>SAMPLE RECEIVING REGISTER</h3>
+        <p class="register-lab">Ultratest Laboratory Private Limited</p>
+        <h3>SAMPLE RECEIVING</h3>
         <p class="register-note">Capture receiving details for drawn samples with due-date tracking.</p>
       </div>
+      ${drawnFormMessage ? `<p class="message" data-state="${drawnFormMessageState}">${escapeHtml(drawnFormMessage)}</p>` : ''}
       <form id="drawn-form" class="data-form" novalidate>
         ${renderDrawnAutoFields(srNoValue, descriptionValue, parameterValue, Boolean(editing))}
         ${renderDrawnDefaultDescriptionMessage(descriptionValue)}
-        <label class="field-group"><span>Sample Drawn on</span><input name="sampleDrawnOn" type="date" value="${escapeHtml(editing?.sampleDrawnOn ?? drawnDraft.sampleDrawnOn ?? '')}" required /></label>
+        <label class="field-group"><span>Report Code</span><input name="reportCode" value="${escapeHtml(reportCodeValue)}" required /></label>
+        <label class="field-group ${showUlrField ? '' : 'hidden'}" data-drawn-ulr-group><span>ULR No.</span><input name="ulrNo" value="${escapeHtml(ulrValue)}" ${showUlrField ? 'required' : ''} /></label>
+        <label class="field-group"><span>Sample Drawn On</span><input name="sampleDrawnOn" type="date" value="${escapeHtml(editing?.sampleDrawnOn ?? drawnDraft.sampleDrawnOn ?? '')}" required /></label>
         <label class="field-group"><span>Sample Drawn By</span><input name="sampleDrawnBy" value="${escapeHtml(editing?.sampleDrawnBy ?? drawnDraft.sampleDrawnBy ?? '')}" required /></label>
         <label class="field-group"><span>Customer Name & Address</span><input name="customerNameAddress" value="${escapeHtml(editing?.customerNameAddress ?? drawnDraft.customerNameAddress ?? '')}" required /></label>
-        <label class="field-group"><span>Status</span>
-          <select name="status" required>
-            <option value="Pending" ${drawnStatus === 'Pending' ? 'selected' : ''}>Pending</option>
-            <option value="In Progress" ${drawnStatus === 'In Progress' ? 'selected' : ''}>In Progress</option>
-            <option value="Reported" ${drawnStatus === 'Reported' ? 'selected' : ''}>Reported</option>
-          </select>
-        </label>
         <label class="field-group"><span>Report Due On</span><input name="reportDueOn" type="date" value="${escapeHtml(editing?.reportDueOn ?? drawnDraft.reportDueOn ?? '')}" required /></label>
-        <label class="field-group"><span>Sample Received By</span><input name="sampleReceivedBy" value="${escapeHtml(editing?.sampleReceivedBy ?? drawnDraft.sampleReceivedBy ?? '')}" required /></label>
+        <label class="field-group"><span>Sample Received By</span><input name="sampleReceivedBy" value="${escapeHtml(sampleReceivedByValue)}" ${sampleReceivedByReadonly ? 'readonly' : ''} required /></label>
         <div class="form-actions">
           <button class="primary-btn" type="submit">${editing ? 'Update Entry' : 'Add Entry'}</button>
           ${editing ? '<button id="drawn-cancel-edit" class="secondary-btn light" type="button">Cancel Edit</button>' : ''}
@@ -1961,8 +2349,8 @@ const renderDrawnRecordsModule = (): string => {
   return `
     <section class="module-card records-page">
       <div class="register-head">
-        <p class="register-lab">ULTRA TESTING & RESEARCH LABORATORY</p>
-        <h3>SAMPLE RECEIVING REGISTER RECORDS</h3>
+        <p class="register-lab">Ultratest Laboratory Private Limited</p>
+        <h3>SAMPLE RECEIVING RECORDS</h3>
         <p class="register-note">All received sample entries with drawing and due-date details.</p>
       </div>
       <div class="module-toolbar">
@@ -1985,7 +2373,7 @@ const renderDrawnRecordsModule = (): string => {
         <button id="drawn-export" class="secondary-btn light" type="button">Export CSV</button>
         <button id="drawn-export-pdf" class="secondary-btn light" type="button">Export PDF</button>
       </div>
-      ${renderDrawnTable(activeSession?.role === 'admin')}
+      ${renderDrawnTable(getFilteredDrawnRecords(), activeSession?.role === 'admin' || activeSession?.role === 'customer', activeSession?.role === 'admin' || activeSession?.role === 'customer')}
     </section>
   `
 }
@@ -2020,7 +2408,7 @@ const renderAdminModule = (): string => {
   const issueToday = issueRecords.filter((record) => record.issuedOn === today).length
   const drawnToday = drawnRecords.filter((record) => record.sampleDrawnOn === today).length
 
-  const pendingIssue = issueRecords.filter((record) => getIssueStatus(record) !== 'Reported').length
+  const pendingIssue = issueRecords.length
   const recentIssue = [...issueRecords]
     .sort((first, second) => toDateValue(second.createdAt ?? second.issuedOn) - toDateValue(first.createdAt ?? first.issuedOn))
     .slice(0, 5)
@@ -2035,7 +2423,7 @@ const renderAdminModule = (): string => {
   return `
     <section class="module-card">
       <div class="register-head">
-        <p class="register-lab">ULTRA TESTING & RESEARCH LABORATORY</p>
+        <p class="register-lab">Ultratest Laboratory Private Limited</p>
         <h3>ADMIN PANEL</h3>
         <p class="register-note">Manage users, alerts, backups and monitor activity.</p>
       </div>
@@ -2046,11 +2434,11 @@ const renderAdminModule = (): string => {
           <p>${totalCount}</p>
         </article>
         <article class="admin-stat-card">
-          <h4>Issue Register</h4>
+          <h4>Issue</h4>
           <p>${issueCount}</p>
         </article>
         <article class="admin-stat-card">
-          <h4>Receiving Register</h4>
+          <h4>Receiving</h4>
           <p>${drawnCount}</p>
         </article>
         <article class="admin-stat-card">
@@ -2092,9 +2480,12 @@ const renderAdminModule = (): string => {
         <h4>User Management</h4>
         <form id="admin-user-form" class="module-toolbar" novalidate>
           <input name="email" type="email" placeholder="staff@labsoft.local" required />
+          <input name="name" type="text" placeholder="Full name" required />
           <input name="password" type="password" placeholder="Temp password" required />
+          <input name="userCode" type="text" placeholder="Unique code (for Staff/Customer Care)" />
           <select name="role">
             <option value="staff">Staff</option>
+            <option value="customer">Customer Care</option>
             <option value="admin">Admin</option>
           </select>
           <button class="secondary-btn light" type="submit">Add User</button>
@@ -2103,8 +2494,10 @@ const renderAdminModule = (): string => {
           <table>
             <thead>
               <tr>
+                <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Unique No.</th>
                 <th>Status</th>
                 <th>Created At</th>
                 <th>Actions</th>
@@ -2117,19 +2510,22 @@ const renderAdminModule = (): string => {
                       .map(
                         (user) => `
                     <tr>
+                      <td>${escapeHtml(getAdminUserDisplayName(user))}</td>
                       <td>${escapeHtml(user.email)}</td>
-                      <td>${escapeHtml(user.role)}</td>
+                      <td>${escapeHtml(getRoleLabel(user.role))}</td>
+                      <td>${escapeHtml(user.userCode || '-')}</td>
                       <td>${user.isActive ? 'Active' : 'Disabled'}</td>
                       <td>${escapeHtml(user.createdAt.slice(0, 10))}</td>
                       <td class="actions-col">
                         <button class="table-action" data-admin-toggle="${escapeHtml(user.id)}" data-next-state="${user.isActive ? 'disable' : 'enable'}" type="button">${user.isActive ? 'Disable' : 'Enable'}</button>
                         <button class="table-action" data-admin-reset="${escapeHtml(user.id)}" type="button">Reset Password</button>
+                        <button class="table-action delete" data-admin-delete="${escapeHtml(user.id)}" type="button">Delete</button>
                       </td>
                     </tr>
                   `
                       )
                       .join('')
-                  : '<tr><td colspan="5">No users found.</td></tr>'
+                  : '<tr><td colspan="7">No users found.</td></tr>'
               }
             </tbody>
           </table>
@@ -2161,6 +2557,24 @@ const renderAdminModule = (): string => {
           </select>
           <button id="admin-backup-restore" class="secondary-btn light" type="button">Restore Selected</button>
         </div>
+        ${
+          adminBackupPreview && adminBackupPreviewFile
+            ? `
+              <div class="admin-backup-preview">
+                <p class="admin-note"><strong>Selected:</strong> ${escapeHtml(adminBackupPreviewFile)}</p>
+                <p class="admin-note"><strong>Created:</strong> ${escapeHtml(adminBackupPreview.createdAt || '-')} by ${escapeHtml(adminBackupPreview.createdBy || '-')}</p>
+                <div class="admin-restore-grid">
+                  <label><input type="checkbox" data-restore-section="users" ${adminRestoreSections.includes('users') ? 'checked' : ''} /> Users (${adminBackupPreview.usersCount})</label>
+                  <label><input type="checkbox" data-restore-section="issueRecords" ${adminRestoreSections.includes('issueRecords') ? 'checked' : ''} /> Issue Records (${adminBackupPreview.issueRecordsCount})</label>
+                  <label><input type="checkbox" data-restore-section="drawnRecords" ${adminRestoreSections.includes('drawnRecords') ? 'checked' : ''} /> Receiving Records (${adminBackupPreview.drawnRecordsCount})</label>
+                  <label><input type="checkbox" data-restore-section="audit" ${adminRestoreSections.includes('audit') ? 'checked' : ''} /> Audit (${adminBackupPreview.auditCount})</label>
+                  <label><input type="checkbox" data-restore-section="registerHistory" ${adminRestoreSections.includes('registerHistory') ? 'checked' : ''} /> History (${adminBackupPreview.registerHistoryCount})</label>
+                  <label><input type="checkbox" data-restore-section="testMaster" ${adminRestoreSections.includes('testMaster') ? 'checked' : ''} /> Test Master (${adminBackupPreview.testMasterTestsCount}/${adminBackupPreview.testMasterParametersCount})</label>
+                </div>
+              </div>
+            `
+            : '<p class="admin-note">Select a backup to preview available restore data.</p>'
+        }
       </section>
 
       <div class="admin-lists">
@@ -2171,7 +2585,7 @@ const renderAdminModule = (): string => {
               ? `<ul>${recentIssue
                   .map(
                     (record) =>
-                      `<li><strong>${escapeHtml(record.srNo)}</strong> • ${escapeHtml(record.sampleDescription)} • ${escapeHtml(record.issuedOn)}</li>`
+                      `<li><strong>${escapeHtml(record.srNo)}</strong> • ULR: ${escapeHtml(record.ulrNo ?? '-')} • ${escapeHtml(record.sampleDescription)} • ${escapeHtml(record.issuedOn)}</li>`
                   )
                   .join('')}</ul>`
               : '<p class="admin-note">No issue entries yet.</p>'
@@ -2185,7 +2599,7 @@ const renderAdminModule = (): string => {
               ? `<ul>${recentDrawn
                   .map(
                     (record) =>
-                      `<li><strong>${escapeHtml(record.srNo)}</strong> • ${escapeHtml(record.sampleDescription)} • ${escapeHtml(record.sampleDrawnOn)}</li>`
+                      `<li><strong>${escapeHtml(record.srNo)}</strong> • Report Code: ${escapeHtml(record.reportCode ?? '-')} • ULR: ${escapeHtml(record.ulrNo ?? '-')} • ${escapeHtml(record.sampleDescription)} • ${escapeHtml(record.sampleDrawnOn)}</li>`
                   )
                   .join('')}</ul>`
               : '<p class="admin-note">No receiving entries yet.</p>'
@@ -2206,7 +2620,7 @@ const renderAdminModule = (): string => {
           }
         </section>
         <section class="admin-list-card">
-          <h4>Recent Register History</h4>
+          <h4>Recent History</h4>
           ${
             adminRegisterHistoryEntries.length
               ? `<ul>${adminRegisterHistoryEntries
@@ -2216,7 +2630,7 @@ const renderAdminModule = (): string => {
                       `<li><strong>${escapeHtml(entry.action)}</strong> • ${escapeHtml(entry.source.toUpperCase())} • Sr.No. ${escapeHtml(entry.srNo)} • ${escapeHtml(entry.createdAt.slice(0, 16).replace('T', ' '))}</li>`
                   )
                   .join('')}</ul>`
-              : '<p class="admin-note">No register history yet.</p>'
+              : '<p class="admin-note">No history yet.</p>'
           }
         </section>
       </div>
@@ -2236,13 +2650,13 @@ const renderLogin = (message = '', routeMode: 'push' | 'replace' | null = null):
     <main class="layout">
       <section class="brand-panel">
         <p class="brand-kicker">LABSOFT</p>
-        <h1>Welcome back</h1>
+        <h1>Welcome Back</h1>
         <p class="brand-copy">Securely access your workspace and continue your workflow.</p>
       </section>
 
       <section class="form-panel">
         <div class="form-header">
-          <h2>Sign in</h2>
+          <h2>Sign In</h2>
           <p>Use your account credentials</p>
         </div>
 
@@ -2309,8 +2723,20 @@ const renderLogin = (message = '', routeMode: 'push' | 'replace' | null = null):
       messageEl.dataset.state = ''
 
       const result = await authenticate(email, password)
-      const nextSession: Session = { token: result.token, email: result.user.email, role: result.user.role }
+      const nextSession: Session = {
+        token: result.token,
+        email: result.user.email,
+        name: result.user.name,
+        role: result.user.role,
+        userCode: result.user.userCode
+      }
+      resetRecordFilters()
       saveSession(nextSession)
+      try {
+        await loadUserDirectory(nextSession.token)
+      } catch {
+        setUserDirectory([])
+      }
       await loadRegisters(nextSession.token)
       try {
         await loadTestMaster(nextSession.token)
@@ -2342,16 +2768,27 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     updateUrlView(selectedModule, routeMode)
   }
 
-  const content =
-    selectedModule === 'issue-entry'
-      ? renderIssueEntryModule()
-      : selectedModule === 'issue-records'
-        ? renderIssueRecordsModule()
-        : selectedModule === 'drawn-entry'
-          ? renderDrawnEntryModule()
-          : selectedModule === 'drawn-records'
-            ? renderDrawnRecordsModule()
-            : renderAdminModule()
+  // Ensure all render functions are called and return HTML strings
+  let content = '';
+  switch (selectedModule) {
+    case 'issue-entry':
+      content = typeof renderIssueEntryModule === 'function' ? renderIssueEntryModule() : '';
+      break;
+    case 'issue-records':
+      content = typeof renderIssueRecordsModule === 'function' ? renderIssueRecordsModule() : '';
+      break;
+    case 'drawn-entry':
+      content = typeof renderDrawnEntryModule === 'function' ? renderDrawnEntryModule() : '';
+      break;
+    case 'drawn-records':
+      content = typeof renderDrawnRecordsModule === 'function' ? renderDrawnRecordsModule() : '';
+      break;
+    case 'admin-panel':
+      content = typeof renderAdminModule === 'function' ? renderAdminModule() : '';
+      break;
+    default:
+      content = '';
+  }
 
   app.innerHTML = `
     <main class="dashboard-shell">
@@ -2359,7 +2796,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
         <p class="brand-kicker">LABSOFT</p>
         <h2>Dashboard</h2>
         <p class="sidebar-meta">${escapeHtml(session.email)}</p>
-        <p class="sidebar-role">Role: ${session.role}</p>
+        <p class="sidebar-role">Role: ${getRoleLabel(session.role)}</p>
         <nav class="menu-list">
           ${menuItems
             .map(
@@ -2385,9 +2822,91 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     </main>
   `
 
+  document.querySelectorAll<HTMLElement>('.issue-status-interactive').forEach((chip) => {
+    chip.addEventListener('click', (event) => {
+      event.stopPropagation()
+      const id = chip.getAttribute('data-issue-status-id')
+      const dropdown = document.querySelector<HTMLElement>(`.status-dropdown[data-status-dropdown="${id}"]`)
+
+      document.querySelectorAll<HTMLElement>('.status-dropdown').forEach((panel) => {
+        if (panel !== dropdown) {
+          panel.classList.add('hidden')
+        }
+      })
+
+      dropdown?.classList.toggle('hidden')
+    })
+  })
+
+  document.querySelectorAll<HTMLButtonElement>('.status-dropdown button').forEach((button) => {
+    button.addEventListener('click', async (event) => {
+      event.stopPropagation()
+
+      if (session.role !== 'admin') {
+        window.alert('Only admin can modify issue records.')
+        return
+      }
+
+      const dropdown = button.closest<HTMLElement>('.status-dropdown')
+      const recordId = dropdown?.dataset.statusDropdown ?? ''
+      const nextStatus = button.dataset.statusOption as 'Pending' | 'In Progress' | 'Reported' | undefined
+      if (!recordId || !nextStatus) {
+        return
+      }
+
+      const index = issueRecords.findIndex((record) => record.id === recordId)
+      if (index === -1) {
+        return
+      }
+
+      const currentRecord = issueRecords[index]
+      if (getIssueStatus(currentRecord) === nextStatus) {
+        dropdown?.classList.add('hidden')
+        return
+      }
+
+      try {
+        const updatedRecord = await updateIssueRecord(session.token, recordId, toIssueRecordWithStatus(currentRecord, nextStatus))
+        issueRecords[index] = enrichIssueRecord(updatedRecord)
+        renderDashboard(session, currentView === 'issue-records' ? 'issue-records' : selectedModule)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unable to update issue status.'
+        window.alert(errorMessage)
+      }
+    })
+  })
+
+  document.addEventListener(
+    'click',
+    () => {
+      document.querySelectorAll<HTMLElement>('.status-dropdown').forEach((panel) => panel.classList.add('hidden'))
+    },
+    { once: true }
+  )
+
   const logoutBtn = document.querySelector<HTMLButtonElement>('#logout-btn')
   const menuButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.menu-btn'))
   const issueForm = document.querySelector<HTMLFormElement>('#issue-form')
+  const issueLoadByReportCodeButton = document.querySelector<HTMLButtonElement>('#issue-load-by-report-code')
+    const reportCodeInput = issueForm?.querySelector<HTMLInputElement>('input[name="codeNo"]')
+    const reportDueOnInput = issueForm?.querySelector<HTMLInputElement>('input[name="reportDueOn"]')
+
+    if (issueLoadByReportCodeButton && reportCodeInput && reportDueOnInput) {
+      issueLoadByReportCodeButton.addEventListener('click', () => {
+        const code = reportCodeInput.value.trim()
+        if (!code) {
+          window.alert('Report Code daalein.')
+          return
+        }
+        // Find drawn record with this report code
+        const drawnRecord = drawnRecords.find(r => r.reportCode === code)
+        if (drawnRecord && drawnRecord.reportDueOn) {
+          reportDueOnInput.value = drawnRecord.reportDueOn
+        } else {
+          window.alert('Matching Receiving Register entry not found ya Report Due On missing.')
+        }
+      })
+    }
   const drawnForm = document.querySelector<HTMLFormElement>('#drawn-form')
   const issueSearchInput = document.querySelector<HTMLInputElement>('#issue-search')
   const issueFromInput = document.querySelector<HTMLInputElement>('#issue-from')
@@ -2422,9 +2941,11 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   const adminUserForm = document.querySelector<HTMLFormElement>('#admin-user-form')
   const adminUserToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-admin-toggle]'))
   const adminUserResetButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-admin-reset]'))
+  const adminUserDeleteButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-admin-delete]'))
   const adminBackupCreateButton = document.querySelector<HTMLButtonElement>('#admin-backup-create')
   const adminBackupRestoreButton = document.querySelector<HTMLButtonElement>('#admin-backup-restore')
   const adminBackupSelect = document.querySelector<HTMLSelectElement>('#admin-backup-select')
+  const adminRestoreSectionInputs = Array.from(document.querySelectorAll<HTMLInputElement>('[data-restore-section]'))
 
   if (!logoutBtn) {
     return
@@ -2496,18 +3017,18 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     const rows = getFilteredIssueRecords().map((record) => [
       record.srNo,
       record.codeNo,
-      getIssueStatus(record),
+      record.ulrNo ?? '',
       record.sampleDescription,
       record.parameterToBeTested,
       record.issuedOn,
       record.issuedBy,
       record.issuedTo,
       record.reportDueOn,
-      record.receivedBy,
+      getIssueReceivedByLabel(record),
       record.reportedOn,
       record.reportedByRemarks
     ])
-    downloadCsv('issue-register.csv', ['Sr.No.', 'Code No.', 'Status', 'Sample Description', 'Parameter to be tested', 'Issued On', 'Issued By', 'Issued To', 'Report Due On', 'Received By', 'Reported On', 'ReportedBy/Remarks'], rows)
+    downloadCsv('issue-register.csv', ['Sr.No.', 'Code No.', 'ULR No.', 'Sample Description', 'Parameter to Be Tested', 'Issued On', 'Issued By', 'Issued To', 'Report Due On', 'Received By', 'Reported On', 'Reported By/Remarks'], rows)
   })
 
   issueExportPdfButton?.addEventListener('click', async () => {
@@ -2521,6 +3042,8 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   issueCancelEditButton?.addEventListener('click', () => {
     issueEditingId = ''
+    issueFormMessage = ''
+    issueFormMessageState = ''
     renderDashboard(session, 'issue-entry')
   })
 
@@ -2533,13 +3056,8 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   issueDeleteButtons.forEach((button) => {
     button.addEventListener('click', async () => {
-      if (session.role !== 'admin') {
-        window.alert('Only admin can delete entries.')
-        return
-      }
-
       const recordId = button.dataset.issueDelete ?? ''
-      if (!recordId || !window.confirm('Delete this issue entry?')) {
+      if (!recordId || !window.confirm('Delete this issue register entry?')) {
         return
       }
 
@@ -2550,6 +3068,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
           await deleteIssueRecordApi(session.token, recordId)
           issueRecords.splice(index, 1)
+          resequenceClientRecords(issueRecords)
 
           if (pendingDelete) {
             clearTimeout(pendingDelete.timeoutId)
@@ -2579,6 +3098,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
       }
     })
   })
+
 
   drawnSearchInput?.addEventListener('input', () => {
     drawnSearch = drawnSearchInput.value
@@ -2623,16 +3143,17 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   drawnExportButton?.addEventListener('click', () => {
     const rows = getFilteredDrawnRecords().map((record) => [
       record.srNo,
-      getDrawnStatus(record),
+      record.reportCode ?? '',
+      record.ulrNo ?? '',
       record.sampleDescription,
       record.sampleDrawnOn,
       record.sampleDrawnBy,
       record.customerNameAddress,
       record.parameterToBeTested,
       record.reportDueOn,
-      record.sampleReceivedBy
+      getDrawnReceivedByLabel(record)
     ])
-    downloadCsv('drawn-sample-register.csv', ['Sr.No.', 'Status', 'Sample Description', 'Sample Drawn on', 'Sample Drawn By', 'Customer Name & Address', 'Parameter to be Tested', 'Report Due On', 'Sample Received By'], rows)
+    downloadCsv('drawn-sample-register.csv', ['Sr.No.', 'Report Code', 'ULR No.', 'Sample Description', 'Sample Drawn On', 'Sample Drawn By', 'Customer Name & Address', 'Parameter to Be Tested', 'Report Due On', 'Sample Received By'], rows)
   })
 
   drawnExportPdfButton?.addEventListener('click', async () => {
@@ -2646,6 +3167,8 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   drawnCancelEditButton?.addEventListener('click', () => {
     drawnEditingId = ''
+    drawnFormMessage = ''
+    drawnFormMessageState = ''
     renderDashboard(session, 'drawn-entry')
   })
 
@@ -2658,11 +3181,6 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   drawnDeleteButtons.forEach((button) => {
     button.addEventListener('click', async () => {
-      if (session.role !== 'admin') {
-        window.alert('Only admin can delete entries.')
-        return
-      }
-
       const recordId = button.dataset.drawnDelete ?? ''
       if (!recordId || !window.confirm('Delete this drawn sample entry?')) {
         return
@@ -2675,6 +3193,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
           await deleteDrawnRecordApi(session.token, recordId)
           drawnRecords.splice(index, 1)
+          resequenceClientRecords(drawnRecords)
 
           if (pendingDelete) {
             clearTimeout(pendingDelete.timeoutId)
@@ -2707,6 +3226,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   adminRefreshButton?.addEventListener('click', async () => {
     try {
+      await loadUserDirectory(session.token)
       await loadAdminPanelData(session.token)
       await loadRegisters(session.token)
       adminMessage = 'Admin data refreshed successfully.'
@@ -2720,58 +3240,63 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   })
 
   adminExportIssueButton?.addEventListener('click', () => {
-    const rows = issueRecords.map((record) => [
+    const rows = [...issueRecords].sort(compareBySrNo).map((record) => [
       record.srNo,
       record.codeNo,
-      getIssueStatus(record),
+      record.ulrNo ?? '',
       record.sampleDescription,
       record.parameterToBeTested,
       record.issuedOn,
       record.issuedBy,
       record.issuedTo,
       record.reportDueOn,
-      record.receivedBy,
+      getIssueReceivedByLabel(record),
       record.reportedOn,
       record.reportedByRemarks
     ])
 
-    downloadCsv('issue-register.csv', ['Sr.No.', 'Code No.', 'Status', 'Sample Description', 'Parameter to be tested', 'Issued On', 'Issued By', 'Issued To', 'Report Due On', 'Received By', 'Reported On', 'ReportedBy/Remarks'], rows)
+    downloadCsv('issue-register.csv', ['Sr.No.', 'Code No.', 'ULR No.', 'Sample Description', 'Parameter to Be Tested', 'Issued On', 'Issued By', 'Issued To', 'Report Due On', 'Received By', 'Reported On', 'Reported By/Remarks'], rows)
   })
 
   adminExportDrawnButton?.addEventListener('click', () => {
-    const rows = drawnRecords.map((record) => [
+    const rows = [...drawnRecords].sort(compareBySrNo).map((record) => [
       record.srNo,
-      getDrawnStatus(record),
+      record.reportCode ?? '',
+      record.ulrNo ?? '',
       record.sampleDescription,
       record.sampleDrawnOn,
       record.sampleDrawnBy,
       record.customerNameAddress,
       record.parameterToBeTested,
       record.reportDueOn,
-      record.sampleReceivedBy
+      getDrawnReceivedByLabel(record)
     ])
 
-    downloadCsv('drawn-sample-register.csv', ['Sr.No.', 'Status', 'Sample Description', 'Sample Drawn on', 'Sample Drawn By', 'Customer Name & Address', 'Parameter to be Tested', 'Report Due On', 'Sample Received By'], rows)
+    downloadCsv('drawn-sample-register.csv', ['Sr.No.', 'Report Code', 'ULR No.', 'Sample Description', 'Sample Drawn On', 'Sample Drawn By', 'Customer Name & Address', 'Parameter to Be Tested', 'Report Due On', 'Sample Received By'], rows)
   })
 
   adminUserForm?.addEventListener('submit', async (event) => {
     event.preventDefault()
     const formData = new FormData(adminUserForm)
     const email = String(formData.get('email') ?? '').trim()
+    const name = String(formData.get('name') ?? '').trim()
     const password = String(formData.get('password') ?? '').trim()
-    const role = (formData.get('role') === 'admin' ? 'admin' : 'staff') as UserRole
+    const userCode = String(formData.get('userCode') ?? '').trim()
+    const roleInput = String(formData.get('role') ?? '').trim().toLowerCase()
+    const role = (roleInput === 'admin' ? 'admin' : roleInput === 'customer' ? 'customer' : 'staff') as UserRole
 
-    if (!email || !password) {
-      adminMessage = 'Email and password are required.'
+    if (!email || !name || !password) {
+      adminMessage = 'Name, email and password are required.'
       adminMessageState = 'error'
       renderDashboard(session, 'admin-panel')
       return
     }
 
     try {
-      await createAdminUser(session.token, { email, password, role })
+      await createAdminUser(session.token, { email, name, password, role, userCode })
+      await loadUserDirectory(session.token)
       await loadAdminPanelData(session.token)
-      adminMessage = `User created: ${email}`
+      adminMessage = `User created: ${name}`
       adminMessageState = ''
       renderDashboard(session, 'admin-panel')
     } catch (error) {
@@ -2792,6 +3317,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
       try {
         await updateAdminUserStatus(session.token, userId, nextState)
+        await loadUserDirectory(session.token)
         await loadAdminPanelData(session.token)
         adminMessage = nextState ? 'User enabled.' : 'User disabled.'
         adminMessageState = ''
@@ -2829,10 +3355,40 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     })
   })
 
+  adminUserDeleteButtons.forEach((button) => {
+    button.addEventListener('click', async () => {
+      const userId = button.dataset.adminDelete ?? ''
+      if (!userId) {
+        return
+      }
+
+      const targetUser = adminUsers.find((user) => user.id === userId)
+      const targetLabel = targetUser ? getAdminUserDisplayName(targetUser) : 'this user'
+
+      if (!window.confirm(`Delete ${targetLabel}? This action cannot be undone.`)) {
+        return
+      }
+
+      try {
+        await deleteAdminUser(session.token, userId)
+        await loadUserDirectory(session.token)
+        await loadAdminPanelData(session.token)
+        adminMessage = `User deleted: ${targetLabel}`
+        adminMessageState = ''
+        renderDashboard(session, 'admin-panel')
+      } catch (error) {
+        adminMessage = error instanceof Error ? error.message : 'Unable to delete user.'
+        adminMessageState = 'error'
+        renderDashboard(session, 'admin-panel')
+      }
+    })
+  })
+
   adminBackupCreateButton?.addEventListener('click', async () => {
     try {
       const fileName = await createBackup(session.token)
       await loadAdminPanelData(session.token)
+      setAdminBackupPreview('', null)
       adminMessage = `Backup created: ${fileName}`
       adminMessageState = ''
       renderDashboard(session, 'admin-panel')
@@ -2841,6 +3397,41 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
       adminMessageState = 'error'
       renderDashboard(session, 'admin-panel')
     }
+  })
+
+  adminBackupSelect?.addEventListener('change', async () => {
+    const fileName = adminBackupSelect.value ?? ''
+    if (!fileName) {
+      setAdminBackupPreview('', null)
+      renderDashboard(session, 'admin-panel')
+      return
+    }
+
+    try {
+      const preview = await fetchBackupPreview(session.token, fileName)
+      setAdminBackupPreview(fileName, preview)
+      adminMessage = ''
+      adminMessageState = ''
+      renderDashboard(session, 'admin-panel')
+    } catch (error) {
+      setAdminBackupPreview('', null)
+      adminMessage = error instanceof Error ? error.message : 'Unable to load backup preview.'
+      adminMessageState = 'error'
+      renderDashboard(session, 'admin-panel')
+    }
+  })
+
+  adminRestoreSectionInputs.forEach((input) => {
+    input.addEventListener('change', () => {
+      const section = input.dataset.restoreSection ?? ''
+      if (!section) {
+        return
+      }
+
+      adminRestoreSections = input.checked
+        ? [...new Set([...adminRestoreSections, section])]
+        : adminRestoreSections.filter((item) => item !== section)
+    })
   })
 
   adminBackupRestoreButton?.addEventListener('click', async () => {
@@ -2852,14 +3443,25 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
       return
     }
 
-    if (!window.confirm(`Restore backup ${fileName}? This will overwrite current data.`)) {
+    if (adminRestoreSections.length === 0) {
+      adminMessage = 'Select at least one restore section.'
+      adminMessageState = 'error'
+      renderDashboard(session, 'admin-panel')
+      return
+    }
+
+    if (!window.confirm(`Restore ${adminRestoreSections.join(', ')} from backup ${fileName}? A safety backup of current data will be created first.`)) {
       return
     }
 
     try {
-      await restoreBackup(session.token, fileName)
-      await Promise.all([loadRegisters(session.token), loadAdminPanelData(session.token), loadTestMaster(session.token)])
-      adminMessage = `Backup restored: ${fileName}`
+      const result = await restoreBackup(session.token, fileName, adminRestoreSections)
+      await Promise.all([loadUserDirectory(session.token), loadRegisters(session.token), loadAdminPanelData(session.token), loadTestMaster(session.token)])
+      if (adminBackupPreviewFile === fileName) {
+        const preview = await fetchBackupPreview(session.token, fileName)
+        setAdminBackupPreview(fileName, preview)
+      }
+      adminMessage = `Backup restored: ${fileName}. Safety backup: ${result.safetyBackupFileName}`
       adminMessageState = ''
       renderDashboard(session, 'admin-panel')
     } catch (error) {
@@ -2870,7 +3472,44 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   })
 
   if (issueForm) {
+
     initializeIssueAutoUi(issueForm, Boolean(issueEditingId))
+
+    // Universal load button for all roles
+    const codeInput = issueForm.querySelector<HTMLInputElement>('input[name="codeNo"]')
+    const loadBtn = issueForm.querySelector<HTMLButtonElement>('#loadByReportCodeBtn')
+    if (codeInput && loadBtn) {
+      loadBtn.addEventListener('click', async () => {
+        const reportCode = String(codeInput.value ?? '').trim()
+        if (!reportCode) {
+          window.alert('Report Code daalein.')
+          return
+        }
+        try {
+          const source = await fetchStaffReceivingByReportCode(session.token, reportCode)
+          const srNoInput = issueForm.querySelector<HTMLInputElement>('input[name="srNo"]')
+          const sampleDescriptionInput = issueForm.querySelector<HTMLInputElement | HTMLSelectElement>('[name="sampleDescription"]')
+          const parameterInput = issueForm.querySelector<HTMLInputElement>('input[name="parameterToBeTested"]')
+          const ulrInput = issueForm.querySelector<HTMLInputElement>('input[name="ulrNo"]')
+          const ulrGroup = issueForm.querySelector<HTMLLabelElement>('[data-ulr-group]')
+          if (srNoInput) srNoInput.value = source.srNo
+          if (sampleDescriptionInput) {
+            sampleDescriptionInput.value = source.sampleDescription
+            if (sampleDescriptionInput instanceof HTMLSelectElement) {
+              sampleDescriptionInput.dispatchEvent(new Event('change'))
+            } else {
+              ulrGroup?.classList.toggle('hidden', !requiresUlrNo(source.sampleDescription))
+            }
+          }
+          if (parameterInput) parameterInput.value = source.parameterToBeTested
+          if (ulrInput) ulrInput.value = source.ulrNo
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Receiving data load failed.'
+          window.alert(errorMessage)
+          console.error('Receiving auto-load error:', error)
+        }
+      })
+    }
 
     if (!issueEditingId) {
       const syncIssueDraft = (): void => {
@@ -2885,37 +3524,46 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
     issueForm.addEventListener('submit', async (event) => {
       event.preventDefault()
+      issueFormMessage = ''
+      issueFormMessageState = ''
       const formData = new FormData(issueForm)
       const payload = readIssuePayloadFromForm(formData)
+      const assignedUserCode = getAssignedUserCode()
+      const isStaffIssueFlow = session.role === 'staff'
 
-      if (
-        !payload.srNo ||
-        !payload.codeNo ||
-        !payload.sampleDescription ||
-        !payload.parameterToBeTested ||
-        !payload.issuedOn ||
-        !payload.issuedBy ||
-        !payload.issuedTo ||
-        !payload.reportDueOn ||
-        !payload.receivedBy
-      ) {
-        window.alert('Please fill all required fields.')
+      if (isStaffIssueFlow && assignedUserCode) {
+        payload.receivedBy = assignedUserCode
+      }
+
+      const ulrRequired = requiresUlrNo(payload.sampleDescription)
+      if (ulrRequired && !payload.ulrNo?.trim()) {
+        issueFormMessage = 'ULR No. is required for Drinking Water and Ground Water samples.'
+        issueFormMessageState = 'error'
+        renderDashboard(session, 'issue-entry')
         return
       }
 
-      if (payload.status === 'Reported' && !payload.reportedOn) {
-        window.alert('Reported On is required when status is Reported.')
+      if (!ulrRequired) {
+        payload.ulrNo = ''
+      }
+
+      if (isStaffIssueFlow && assignedUserCode && !payload.receivedBy) {
+        issueFormMessage = 'Assigned unique number is missing. Contact admin.'
+        issueFormMessageState = 'error'
+        renderDashboard(session, 'issue-entry')
         return
       }
 
-      if (payload.status !== 'Reported') {
+      if (!payload.reportedOn) {
         payload.reportedOn = ''
         payload.reportedByRemarks = payload.reportedByRemarks || ''
       }
 
-      const issueDuplicateMessage = hasIssueDuplicate(payload, issueEditingId)
-      if (issueDuplicateMessage) {
-        window.alert(issueDuplicateMessage)
+      const issueValidationMessage = validateIssuePayload(payload)
+      if (issueValidationMessage) {
+        issueFormMessage = issueValidationMessage
+        issueFormMessageState = 'error'
+        renderDashboard(session, 'issue-entry')
         return
       }
 
@@ -2924,19 +3572,24 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
           const updated = await updateIssueRecord(session.token, issueEditingId, payload)
           const index = issueRecords.findIndex((record) => record.id === issueEditingId)
           if (index >= 0) {
-            issueRecords[index] = updated
+            issueRecords[index] = enrichIssueRecord(updated)
           }
           issueEditingId = ''
+          issueFormMessage = ''
+          issueFormMessageState = ''
           renderDashboard(session, 'issue-records')
         } else {
           const created = await createIssueRecord(session.token, payload)
-          issueRecords.unshift(created)
+          issueRecords.unshift(enrichIssueRecord(created))
           clearDraft(ISSUE_DRAFT_KEY)
+          issueFormMessage = 'Issue entry saved successfully.'
+          issueFormMessageState = ''
           renderDashboard(session, 'issue-entry')
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unable to save issue entry.'
-        window.alert(errorMessage)
+        issueFormMessage = error instanceof Error ? error.message : 'Unable to save issue entry.'
+        issueFormMessageState = 'error'
+        renderDashboard(session, 'issue-entry')
       }
     })
   }
@@ -2957,26 +3610,28 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
     drawnForm.addEventListener('submit', async (event) => {
       event.preventDefault()
+      drawnFormMessage = ''
+      drawnFormMessageState = ''
       const formData = new FormData(drawnForm)
       const payload = readDrawnPayloadFromForm(formData)
 
-      if (
-        !payload.srNo ||
-        !payload.sampleDescription ||
-        !payload.sampleDrawnOn ||
-        !payload.sampleDrawnBy ||
-        !payload.customerNameAddress ||
-        !payload.parameterToBeTested ||
-        !payload.reportDueOn ||
-        !payload.sampleReceivedBy
-      ) {
-        window.alert('Please fill all required fields.')
+      const ulrRequired = requiresUlrNo(payload.sampleDescription)
+      if (ulrRequired && !payload.ulrNo?.trim()) {
+        drawnFormMessage = 'ULR No. is required for Drinking Water and Ground Water samples.'
+        drawnFormMessageState = 'error'
+        renderDashboard(session, 'drawn-entry')
         return
       }
 
-      const drawnDuplicateMessage = hasDrawnDuplicate(payload, drawnEditingId)
-      if (drawnDuplicateMessage) {
-        window.alert(drawnDuplicateMessage)
+      if (!ulrRequired) {
+        payload.ulrNo = ''
+      }
+
+      const drawnValidationMessage = validateDrawnPayload(payload)
+      if (drawnValidationMessage) {
+        drawnFormMessage = drawnValidationMessage
+        drawnFormMessageState = 'error'
+        renderDashboard(session, 'drawn-entry')
         return
       }
 
@@ -2985,19 +3640,24 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
           const updated = await updateDrawnRecord(session.token, drawnEditingId, payload)
           const index = drawnRecords.findIndex((record) => record.id === drawnEditingId)
           if (index >= 0) {
-            drawnRecords[index] = updated
+            drawnRecords[index] = enrichDrawnRecord(updated)
           }
           drawnEditingId = ''
+          drawnFormMessage = ''
+          drawnFormMessageState = ''
           renderDashboard(session, 'drawn-records')
         } else {
           const created = await createDrawnRecord(session.token, payload)
-          drawnRecords.unshift(created)
+          drawnRecords.unshift(enrichDrawnRecord(created))
           clearDraft(DRAWN_DRAFT_KEY)
+          drawnFormMessage = 'Receiving entry saved successfully.'
+          drawnFormMessageState = ''
           renderDashboard(session, 'drawn-entry')
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unable to save drawn sample entry.'
-        window.alert(errorMessage)
+        drawnFormMessage = error instanceof Error ? error.message : 'Unable to save drawn sample entry.'
+        drawnFormMessageState = 'error'
+        renderDashboard(session, 'drawn-entry')
       }
     })
   }
@@ -3014,10 +3674,10 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
     try {
       if (toRestore.source === 'issue') {
         const restored = await createIssueRecord(session.token, toIssueCreatePayload(toRestore.record as IssueRecord))
-        issueRecords.splice(Math.min(toRestore.index, issueRecords.length), 0, restored)
+        issueRecords.splice(Math.min(toRestore.index, issueRecords.length), 0, enrichIssueRecord(restored))
       } else {
         const restored = await createDrawnRecord(session.token, toDrawnCreatePayload(toRestore.record as DrawnRecord))
-        drawnRecords.splice(Math.min(toRestore.index, drawnRecords.length), 0, restored)
+        drawnRecords.splice(Math.min(toRestore.index, drawnRecords.length), 0, enrichDrawnRecord(restored))
       }
 
       renderDashboard(session, toRestore.module)
@@ -3034,66 +3694,14 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
       pendingDelete = null
     }
 
+    resetRecordFilters()
     clearSession()
-    renderLogin('You have been logged out.')
+    renderLogin('You have been logged out.', 'replace')
+    setTimeout(() => { window.location.reload(); }, 100);
   })
 }
 
-const initApp = async (): Promise<void> => {
-  const existingSession = getSession()
-
-  if (!existingSession) {
-    renderLogin('', 'replace')
-    return
-  }
-
-  try {
-    const profile = await fetchCurrentUser(existingSession.token)
-    const nextSession: Session = {
-      token: existingSession.token,
-      email: profile.user.email,
-      role: profile.user.role
-    }
-
-    saveSession(nextSession)
-    await loadRegisters(nextSession.token)
-    try {
-      await loadTestMaster(nextSession.token)
-    } catch {
-      setTestMaster([], [])
-    }
-    const initialView = getHashView()
-
-    if (initialView === 'login') {
-      renderDashboard(nextSession, 'issue-entry', 'replace')
-      return
-    }
-
-    if (initialView && initialView !== 'admin-panel') {
-      renderDashboard(nextSession, initialView, 'replace')
-      return
-    }
-
-    if (initialView === 'admin-panel' && nextSession.role === 'admin') {
-      try {
-        await loadAdminPanelData(nextSession.token)
-        adminMessage = ''
-        adminMessageState = ''
-      } catch (error) {
-        adminMessage = error instanceof Error ? error.message : 'Failed to load admin data.'
-        adminMessageState = 'error'
-      }
-
-      renderDashboard(nextSession, 'admin-panel', 'replace')
-      return
-    }
-
-    renderDashboard(nextSession, 'issue-entry', 'replace')
-  } catch {
-    clearSession()
-    renderLogin('Session expired. Please login again.', 'replace')
-  }
-}
+// ...existing code...
 
 const handleBrowserNavigation = (): void => {
   const routeView = getHashView()
@@ -3169,3 +3777,4 @@ window.addEventListener('hashchange', handleBrowserNavigation)
 startDailyActivityRefresh()
 
 void initApp()
+// ...existing code...
