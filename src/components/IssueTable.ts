@@ -48,12 +48,12 @@ export function renderIssueTable(records: IssueRecord[], canDelete: boolean, can
         <tbody>
           ${records
             .map(
-              (item) => {
+              (item, index) => {
                 const status = getIssueStatus(item)
                 const statusMeta = getIssueStatusMeta(status)
                 return `
             <tr>
-              <td>${item.srNo}</td>
+              <td>${index + 1}</td>
               <td>${item.codeNo}</td>
               <td>${item.ulrNo ?? ''}</td>
               <td>${item.sampleDescription}</td>

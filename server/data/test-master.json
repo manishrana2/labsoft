@@ -2,7 +2,7 @@
   "tests": [
     {
       "id": "t1",
-      "testName": "Ambient Air Quality Monitoring & Analysis (Extended)",
+      "testName": "Ambient Air Quality Monitoring & Analysis",
       "description": "Ambient Air Quality Monitoring & Analysis",
       "displayOrder": 1
     },
@@ -86,8 +86,8 @@
     },
     {
       "id": "t11",
-      "testName": "Surface Water Bodies",
-      "description": "Surface Water Bodies",
+      "testName": "Surface Water Testing",
+      "description": "Surface Water Testing",
       "displayOrder": 15
     },
     {
@@ -173,13 +173,13 @@
     {
       "id": "p9",
       "testId": "t9",
-      "parameterName": "pH, Colour, Odour, Taste, Turbidity, TDS, Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate",
+      "parameterName": "pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate",
       "displayOrder": 1
     },
     {
       "id": "p10",
       "testId": "t10",
-      "parameterName": "pH, Value, Colour, Odour, Taste, Turbidity, TDS, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)",
+      "parameterName": "pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)",
       "displayOrder": 1
     },
     {

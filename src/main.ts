@@ -92,7 +92,8 @@ function getNextSerialNumber(records: Array<{ srNo: string }>): string {
 
 // Helper: Render sample description options
 function renderSampleDescriptionOptions(selectedDescription: string): string {
-  const descriptions: string[] = FALLBACK_TESTS.map((test: TestMasterTest) => test.description);
+  const tests = testMasterTests.length ? testMasterTests : FALLBACK_TESTS
+  const descriptions: string[] = tests.map((test: TestMasterTest) => test.description);
   return descriptions
     .map((desc: string) => `<option value="${escapeHtml(desc)}"${normalizeMasterKey(desc) === normalizeMasterKey(selectedDescription) ? ' selected' : ''}>${escapeHtml(desc)}</option>`)
     .join('');
@@ -113,18 +114,32 @@ function readNumericPart(value: string): number | null {
 // --- Restored missing helper functions and global variables ---
 // Helper: Get parameter options for a sample description
 function getParameterOptions(description: string): string[] {
-  const param = FALLBACK_PARAMETERS.find(
-    (item: TestMasterParameter) => normalizeMasterKey(item.parameterName) === normalizeMasterKey(description) || normalizeMasterKey(item.testId) === normalizeMasterKey(description)
-  );
-  if (param) {
-    return parseParameterValueList(param.parameterName);
+  const normalizedDescription = normalizeMasterKey(description)
+  if (!normalizedDescription) {
+    return []
   }
-  // Try to match by description
-  const fallback = FALLBACK_PARAMETERS.find((item: TestMasterParameter) => normalizeMasterKey(item.parameterName).includes(normalizeMasterKey(description)));
+
+  const tests = testMasterTests.length ? testMasterTests : FALLBACK_TESTS
+  const parameters = testMasterParameters.length ? testMasterParameters : FALLBACK_PARAMETERS
+  const matchedTest = tests.find((item: TestMasterTest) => normalizeMasterKey(item.description) === normalizedDescription)
+
+  if (matchedTest) {
+    const matchedParameters = parameters
+      .filter((item: TestMasterParameter) => normalizeMasterKey(item.testId) === normalizeMasterKey(matchedTest.id))
+      .sort((first, second) => Number(first.displayOrder ?? 0) - Number(second.displayOrder ?? 0))
+      .flatMap((item) => parseParameterValueList(item.parameterName))
+
+    if (matchedParameters.length) {
+      return [...new Set(matchedParameters)]
+    }
+  }
+
+  const fallback = parameters.find((item: TestMasterParameter) => normalizeMasterKey(item.parameterName).includes(normalizedDescription))
   if (fallback) {
-    return parseParameterValueList(fallback.parameterName);
+    return parseParameterValueList(fallback.parameterName)
   }
-  return [];
+
+  return []
 }
 
 // Helper: Set input value safely
@@ -263,7 +278,7 @@ type MeResponse = {
 };
 
 const FALLBACK_TESTS: TestMasterTest[] = [
-  { id: 't1', testName: 'Ambient Air Quality Monitoring & Analysis (Extended)', description: 'Ambient Air Quality Monitoring & Analysis', displayOrder: 1 },
+  { id: 't1', testName: 'Ambient Air Quality Monitoring & Analysis', description: 'Ambient Air Quality Monitoring & Analysis', displayOrder: 1 },
   { id: 't2', testName: 'Ambient Air Quality Monitoring & Analysis (Basic)', description: 'Ambient Air Quality Monitoring & Analysis (Basic)', displayOrder: 2 },
   { id: 't3', testName: 'Indoor Air', description: 'Indoor Air', displayOrder: 3 },
   { id: 't4', testName: 'Ambient Noise', description: 'Ambient Noise', displayOrder: 4 },
@@ -277,7 +292,7 @@ const FALLBACK_TESTS: TestMasterTest[] = [
   { id: 't8e', testName: 'Waste Water', description: 'Waste Water', displayOrder: 12 },
   { id: 't9', testName: 'Drinking Water Testing', description: 'Drinking Water Testing', displayOrder: 13 },
   { id: 't10', testName: 'Ground Water Quality', description: 'Ground Water Quality', displayOrder: 14 },
-  { id: 't11', testName: 'Surface Water Bodies', description: 'Surface Water Bodies', displayOrder: 15 },
+  { id: 't11', testName: 'Surface Water Testing', description: 'Surface Water Testing', displayOrder: 15 },
   { id: 't12', testName: 'Soil Quality Test', description: 'Soil Quality Test', displayOrder: 16 }
 ];
 
@@ -294,8 +309,8 @@ const FALLBACK_PARAMETERS: TestMasterParameter[] = [
   { id: 'p8c', testId: 't8c', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
   { id: 'p8d', testId: 't8d', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
   { id: 'p8e', testId: 't8e', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
-  { id: 'p9', testId: 't9', parameterName: 'pH, Colour, Odour, Taste, Turbidity, TDS, Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate', displayOrder: 1 },
-  { id: 'p10', testId: 't10', parameterName: 'pH, Value, Colour, Odour, Taste, Turbidity, TDS, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)', displayOrder: 1 },
+  { id: 'p9', testId: 't9', parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate', displayOrder: 1 },
+  { id: 'p10', testId: 't10', parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)', displayOrder: 1 },
   { id: 'p11', testId: 't11', parameterName: 'pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic', displayOrder: 1 },
   { id: 'p12', testId: 't12', parameterName: 'Texture, Sand %, Clay %, Moisture %, Silt %, pH, Electrical Conductivity, Potassium, Sodium, Calcium, Magnesium, Sodium Absorption Ratio, Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Available Phosphorus, Organic Matter, Porosity', displayOrder: 1 }
 ];
@@ -395,6 +410,7 @@ let adminBackupPreviewFile = ''
 let adminRestoreSections: string[] = ['users', 'issueRecords', 'drawnRecords']
 const testMasterTests: TestMasterTest[] = []
 const testMasterParameters: TestMasterParameter[] = []
+let adminPanelOpenSection: '' | 'pending-reports' = ''
 let adminMessage = ''
 let adminMessageState: '' | 'error' = ''
 let issueFormMessage = ''
@@ -1455,6 +1471,7 @@ const downloadIssueRegisterPdf = async (records: IssueRecord[]): Promise<void> =
   const pdf = new jsPDF({ orientation: 'landscape', format: 'a4' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const marginLeft = (pageWidth - ISSUE_PDF_TABLE_WIDTH) / 2
+  const showUlrColumn = records.some((record) => requiresUlrNo(record.sampleDescription))
 
   await drawPdfBottomBackgroundLogo(pdf)
   await drawPdfHeaderLogo(pdf)
@@ -1469,7 +1486,6 @@ const downloadIssueRegisterPdf = async (records: IssueRecord[]): Promise<void> =
   const headers = [
     'Sr.No.',
     'Code No.',
-    'ULR No.',
     'Sample Description',
     'Parameter to Be Tested',
     'Issued On',
@@ -1480,21 +1496,59 @@ const downloadIssueRegisterPdf = async (records: IssueRecord[]): Promise<void> =
     'Reported On',
     'Reported By/\nRemarks'
   ]
+  if (showUlrColumn) {
+    headers.splice(2, 0, 'ULR No.')
+  }
 
-  const rows = records.map((record) => [
-    record.srNo,
-    record.codeNo,
-    record.ulrNo ?? '',
-    record.sampleDescription,
-    record.parameterToBeTested,
-    record.issuedOn,
-    record.issuedBy,
-    record.issuedTo,
-    record.reportDueOn,
-    getIssueReceivedByLabel(record),
-    record.reportedOn,
-    record.reportedByRemarks
-  ])
+  const rows = records.map((record) => {
+    const row = [
+      record.srNo,
+      record.codeNo,
+      record.sampleDescription,
+      record.parameterToBeTested,
+      record.issuedOn,
+      record.issuedBy,
+      record.issuedTo,
+      record.reportDueOn,
+      getIssueReceivedByLabel(record),
+      record.reportedOn,
+      record.reportedByRemarks
+    ]
+    if (showUlrColumn) {
+      row.splice(2, 0, requiresUlrNo(record.sampleDescription) ? record.ulrNo ?? '' : '')
+    }
+    return row
+  })
+
+  const issueColumnStyles = (showUlrColumn
+    ? {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 24, halign: 'center' },
+        2: { cellWidth: 30, halign: 'center' },
+        3: { cellWidth: 29 },
+        4: { cellWidth: 36 },
+        5: { cellWidth: 16, halign: 'center' },
+        6: { cellWidth: 16 },
+        7: { cellWidth: 16 },
+        8: { cellWidth: 18, halign: 'center' },
+        9: { cellWidth: 19 },
+        10: { cellWidth: 16, halign: 'center' },
+        11: { cellWidth: 26 }
+      }
+    : {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 26, halign: 'center' },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 42 },
+        4: { cellWidth: 16, halign: 'center' },
+        5: { cellWidth: 17 },
+        6: { cellWidth: 17 },
+        7: { cellWidth: 18, halign: 'center' },
+        8: { cellWidth: 20 },
+        9: { cellWidth: 16, halign: 'center' },
+        10: { cellWidth: 28 }
+      }
+  ) as Record<string, { cellWidth: number; halign?: 'center' }>
 
   autoTable(pdf, {
     head: [headers],
@@ -1521,20 +1575,7 @@ const downloadIssueRegisterPdf = async (records: IssueRecord[]): Promise<void> =
       lineColor: [70, 70, 70],
       lineWidth: 0.1
     },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 24, halign: 'center' },
-      2: { cellWidth: 30, halign: 'center' },
-      3: { cellWidth: 29 },
-      4: { cellWidth: 36 },
-      5: { cellWidth: 16, halign: 'center' },
-      6: { cellWidth: 16 },
-      7: { cellWidth: 16 },
-      8: { cellWidth: 18, halign: 'center' },
-      9: { cellWidth: 19 },
-      10: { cellWidth: 16, halign: 'center' },
-      11: { cellWidth: 26 }
-    }
+    columnStyles: issueColumnStyles
   })
 
   pdf.save('issue-register.pdf')
@@ -1544,6 +1585,7 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
   const pdf = new jsPDF({ orientation: 'landscape', format: 'a4' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const marginLeft = (pageWidth - DRAWN_PDF_TABLE_WIDTH) / 2
+  const showUlrColumn = records.some((record) => requiresUlrNo(record.sampleDescription))
 
   await drawPdfBottomBackgroundLogo(pdf)
   await drawPdfHeaderLogo(pdf)
@@ -1558,7 +1600,6 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
   const headers = [
     'Sr.No.',
     'Report Code',
-    'ULR No.',
     'Sample Description',
     'Sample Drawn On',
     'Sample Drawn By',
@@ -1567,19 +1608,53 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
     'Report Due On',
     'Sample Received\nBy'
   ]
+  if (showUlrColumn) {
+    headers.splice(2, 0, 'ULR No.')
+  }
 
-  const rows = records.map((record) => [
-    record.srNo,
-    record.reportCode ?? '',
-    record.ulrNo ?? '',
-    record.sampleDescription,
-    record.sampleDrawnOn,
-    record.sampleDrawnBy,
-    record.customerNameAddress,
-    record.parameterToBeTested,
-    record.reportDueOn,
-    getDrawnReceivedByLabel(record)
-  ])
+  const rows = records.map((record) => {
+    const row = [
+      record.srNo,
+      record.reportCode ?? '',
+      record.sampleDescription,
+      record.sampleDrawnOn,
+      record.sampleDrawnBy,
+      record.customerNameAddress,
+      record.parameterToBeTested,
+      record.reportDueOn,
+      getDrawnReceivedByLabel(record)
+    ]
+    if (showUlrColumn) {
+      row.splice(2, 0, requiresUlrNo(record.sampleDescription) ? record.ulrNo ?? '' : '')
+    }
+    return row
+  })
+
+  const drawnColumnStyles = (showUlrColumn
+    ? {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 28, halign: 'center' },
+        2: { cellWidth: 32, halign: 'center' },
+        3: { cellWidth: 28 },
+        4: { cellWidth: 18, halign: 'center' },
+        5: { cellWidth: 18 },
+        6: { cellWidth: 37 },
+        7: { cellWidth: 39 },
+        8: { cellWidth: 18, halign: 'center' },
+        9: { cellWidth: 24 }
+      }
+    : {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 31, halign: 'center' },
+        2: { cellWidth: 31 },
+        3: { cellWidth: 20, halign: 'center' },
+        4: { cellWidth: 20 },
+        5: { cellWidth: 40 },
+        6: { cellWidth: 42 },
+        7: { cellWidth: 19, halign: 'center' },
+        8: { cellWidth: 26 }
+      }
+  ) as Record<string, { cellWidth: number; halign?: 'center' }>
 
   autoTable(pdf, {
     head: [headers],
@@ -1606,18 +1681,7 @@ const downloadDrawnRegisterPdf = async (records: DrawnRecord[]): Promise<void> =
       lineColor: [70, 70, 70],
       lineWidth: 0.1
     },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 28, halign: 'center' },
-      2: { cellWidth: 32, halign: 'center' },
-      3: { cellWidth: 28 },
-      4: { cellWidth: 18, halign: 'center' },
-      5: { cellWidth: 18 },
-      6: { cellWidth: 37 },
-      7: { cellWidth: 39 },
-      8: { cellWidth: 18, halign: 'center' },
-      9: { cellWidth: 24 }
-    }
+    columnStyles: drawnColumnStyles
   })
 
   pdf.save('drawn-sample-register.pdf')
@@ -1699,6 +1763,14 @@ const compareBySrNo = (first: { srNo: string }, second: { srNo: string }): numbe
   return first.srNo.localeCompare(second.srNo, undefined, { numeric: true, sensitivity: 'base' })
 }
 
+const getIssueRecordStatus = (record: IssueRecord): 'Pending' | 'In Progress' | 'Reported' => {
+  if (record.status === 'Pending' || record.status === 'In Progress' || record.status === 'Reported') {
+    return record.status
+  }
+
+  return String(record.reportedOn ?? '').trim() ? 'Reported' : 'Pending'
+}
+
 const resequenceClientRecords = <T extends { id?: string; srNo: string }>(records: T[]): void => {
   const nextSerialById = new Map(
     [...records]
@@ -1778,6 +1850,12 @@ const getFilteredDrawnRecords = (): DrawnRecord[] => {
 
   return filtered.sort(compareBySrNo)
 }
+
+const withDisplaySerial = <T extends { srNo: string }>(records: T[]): Array<T & { displaySrNo: string }> =>
+  records.map((record, index) => ({
+    ...record,
+    displaySrNo: String(index + 1)
+  }))
 
 const saveSession = (session: Session): void => {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
@@ -2408,7 +2486,8 @@ const renderAdminModule = (): string => {
   const issueToday = issueRecords.filter((record) => record.issuedOn === today).length
   const drawnToday = drawnRecords.filter((record) => record.sampleDrawnOn === today).length
 
-  const pendingIssue = issueRecords.length
+  const pendingIssueRecords = issueRecords.filter((record) => getIssueRecordStatus(record) !== 'Reported')
+  const pendingIssue = pendingIssueRecords.length
   const recentIssue = [...issueRecords]
     .sort((first, second) => toDateValue(second.createdAt ?? second.issuedOn) - toDateValue(first.createdAt ?? first.issuedOn))
     .slice(0, 5)
@@ -2441,7 +2520,7 @@ const renderAdminModule = (): string => {
           <h4>Receiving</h4>
           <p>${drawnCount}</p>
         </article>
-        <article class="admin-stat-card">
+        <article class="admin-stat-card clickable" data-admin-section="pending-reports" role="button" tabindex="0">
           <h4>Pending Reports</h4>
           <p>${pendingIssue}</p>
         </article>
@@ -2544,6 +2623,27 @@ const renderAdminModule = (): string => {
             : '<p class="admin-note">No alerts right now.</p>'
         }
       </section>
+
+      ${
+        adminPanelOpenSection === 'pending-reports'
+          ? `
+            <section class="admin-alerts">
+              <h4>Pending Report Details</h4>
+              ${
+                pendingIssueRecords.length
+                  ? `<ul>${pendingIssueRecords
+                      .sort(compareBySrNo)
+                      .map(
+                        (record) =>
+                          `<li><strong>${escapeHtml(record.srNo)}</strong> • Code No.: ${escapeHtml(record.codeNo)} • ${escapeHtml(record.sampleDescription)} • Due: ${escapeHtml(record.reportDueOn)} • Status: ${escapeHtml(getIssueRecordStatus(record))}</li>`
+                      )
+                      .join('')}</ul>`
+                  : '<p class="admin-note">No pending reports right now.</p>'
+              }
+            </section>
+          `
+          : ''
+      }
 
       <section class="admin-backups">
         <h4>Restore Backup</h4>
@@ -2942,6 +3042,7 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   const adminUserToggleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-admin-toggle]'))
   const adminUserResetButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-admin-reset]'))
   const adminUserDeleteButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-admin-delete]'))
+  const adminSectionCards = Array.from(document.querySelectorAll<HTMLElement>('[data-admin-section]'))
   const adminBackupCreateButton = document.querySelector<HTMLButtonElement>('#admin-backup-create')
   const adminBackupRestoreButton = document.querySelector<HTMLButtonElement>('#admin-backup-restore')
   const adminBackupSelect = document.querySelector<HTMLSelectElement>('#admin-backup-select')
@@ -3014,8 +3115,8 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   })
 
   issueExportButton?.addEventListener('click', () => {
-    const rows = getFilteredIssueRecords().map((record) => [
-      record.srNo,
+    const rows = withDisplaySerial(getFilteredIssueRecords()).map((record) => [
+      record.displaySrNo,
       record.codeNo,
       record.ulrNo ?? '',
       record.sampleDescription,
@@ -3033,7 +3134,9 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   issueExportPdfButton?.addEventListener('click', async () => {
     try {
-      await downloadIssueRegisterPdf(getFilteredIssueRecords())
+      await downloadIssueRegisterPdf(
+        withDisplaySerial(getFilteredIssueRecords()).map((record) => ({ ...record, srNo: record.displaySrNo }))
+      )
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unable to export issue PDF.'
       window.alert(errorMessage)
@@ -3141,8 +3244,8 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
   })
 
   drawnExportButton?.addEventListener('click', () => {
-    const rows = getFilteredDrawnRecords().map((record) => [
-      record.srNo,
+    const rows = withDisplaySerial(getFilteredDrawnRecords()).map((record) => [
+      record.displaySrNo,
       record.reportCode ?? '',
       record.ulrNo ?? '',
       record.sampleDescription,
@@ -3158,7 +3261,9 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
 
   drawnExportPdfButton?.addEventListener('click', async () => {
     try {
-      await downloadDrawnRegisterPdf(getFilteredDrawnRecords())
+      await downloadDrawnRegisterPdf(
+        withDisplaySerial(getFilteredDrawnRecords()).map((record) => ({ ...record, srNo: record.displaySrNo }))
+      )
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unable to export receiving PDF.'
       window.alert(errorMessage)
@@ -3380,6 +3485,22 @@ const renderDashboard = (session: Session, currentModule: ModuleKey, routeMode: 
         adminMessage = error instanceof Error ? error.message : 'Unable to delete user.'
         adminMessageState = 'error'
         renderDashboard(session, 'admin-panel')
+      }
+    })
+  })
+
+  adminSectionCards.forEach((card) => {
+    const toggleSection = (): void => {
+      const section = card.dataset.adminSection === 'pending-reports' ? 'pending-reports' : ''
+      adminPanelOpenSection = adminPanelOpenSection === section ? '' : section
+      renderDashboard(session, 'admin-panel')
+    }
+
+    card.addEventListener('click', toggleSection)
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        toggleSection()
       }
     })
   })

@@ -25,10 +25,10 @@ export function renderDrawnTable(records: DrawnRecord[], canDelete: boolean, can
         <tbody>
           ${records
             .map(
-              (item) => {
+              (item, index) => {
                 return `
             <tr>
-              <td>${item.srNo}</td>
+              <td>${index + 1}</td>
               <td>${item.reportCode ?? ''}</td>
               <td>${item.ulrNo ?? ''}</td>
               <td>${item.sampleDescription}</td>

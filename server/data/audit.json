@@ -1,5 +1,35 @@
 [
   {
+    "id": "aud_31f700d7-b6be-4139-b1cc-fa7675fb7483",
+    "actor": "admin@labsoft.dev",
+    "action": "LOGIN_SUCCESS",
+    "target": "admin@labsoft.dev",
+    "details": "Role: admin",
+    "before": null,
+    "after": null,
+    "createdAt": "2026-03-15T07:54:19.046Z"
+  },
+  {
+    "id": "aud_27846b58-83b2-403a-b98d-1e0eb25bd249",
+    "actor": "vijay@gmail.com",
+    "action": "LOGIN_SUCCESS",
+    "target": "vijay@gmail.com",
+    "details": "Role: staff",
+    "before": null,
+    "after": null,
+    "createdAt": "2026-03-15T07:48:33.603Z"
+  },
+  {
+    "id": "aud_bbcdf1c0-dc28-40e9-9bdb-444bc040c87c",
+    "actor": "admin@labsoft.dev",
+    "action": "LOGIN_SUCCESS",
+    "target": "admin@labsoft.dev",
+    "details": "Role: admin",
+    "before": null,
+    "after": null,
+    "createdAt": "2026-03-15T07:35:30.342Z"
+  },
+  {
     "id": "aud_c9a9e086-5088-4453-9503-b153cb033ecd",
     "actor": "vijay@gmail.com",
     "action": "ISSUE_UPDATE",

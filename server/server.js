@@ -33,7 +33,7 @@ const DEFAULT_TEST_MASTER = {
   tests: [
     {
       id: 't1',
-      testName: 'Ambient Air Quality Monitoring & Analysis (Extended)',
+      testName: 'Ambient Air Quality Monitoring & Analysis',
       description: 'Ambient Air Quality Monitoring & Analysis',
       displayOrder: 1
     },
@@ -48,10 +48,14 @@ const DEFAULT_TEST_MASTER = {
     { id: 't5', testName: 'Indoor Noise', description: 'Indoor Noise', displayOrder: 5 },
     { id: 't6', testName: 'DG Stack Emission', description: 'DG Stack Emission', displayOrder: 6 },
     { id: 't7', testName: 'DG Noise', description: 'DG Noise', displayOrder: 7 },
-    { id: 't8', testName: 'STP / ETP / Waste Water', description: 'STP / ETP / Waste Water', displayOrder: 8 },
+    { id: 't8', testName: 'ETP Inlet', description: 'ETP Inlet', displayOrder: 8 },
+    { id: 't8b', testName: 'ETP Outlet', description: 'ETP Outlet', displayOrder: 9 },
+    { id: 't8c', testName: 'STP Inlet', description: 'STP Inlet', displayOrder: 10 },
+    { id: 't8d', testName: 'STP Outlet', description: 'STP Outlet', displayOrder: 11 },
+    { id: 't8e', testName: 'Waste Water', description: 'Waste Water', displayOrder: 12 },
     { id: 't9', testName: 'Drinking Water Testing', description: 'Drinking Water Testing', displayOrder: 9 },
     { id: 't10', testName: 'Ground Water Quality', description: 'Ground Water Quality', displayOrder: 10 },
-    { id: 't11', testName: 'Surface Water Bodies', description: 'Surface Water Bodies', displayOrder: 11 },
+    { id: 't11', testName: 'Surface Water Testing', description: 'Surface Water Testing', displayOrder: 11 },
     { id: 't12', testName: 'Soil Quality Test', description: 'Soil Quality Test', displayOrder: 12 }
   ],
   parameters: [
@@ -68,16 +72,20 @@ const DEFAULT_TEST_MASTER = {
     { id: 'p6', testId: 't6', parameterName: 'PM, SOx, NOx, CO', displayOrder: 1 },
     { id: 'p7', testId: 't7', parameterName: 'Leq', displayOrder: 1 },
     { id: 'p8', testId: 't8', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+    { id: 'p8b', testId: 't8b', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+    { id: 'p8c', testId: 't8c', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+    { id: 'p8d', testId: 't8d', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+    { id: 'p8e', testId: 't8e', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
     {
       id: 'p9',
       testId: 't9',
-      parameterName: 'pH, Colour, Odour, Taste, Turbidity, TDS, Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate',
+      parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate',
       displayOrder: 1
     },
     {
       id: 'p10',
       testId: 't10',
-      parameterName: 'pH, Value, Colour, Odour, Taste, Turbidity, TDS, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)',
+      parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)',
       displayOrder: 1
     },
     {
