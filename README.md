@@ -1,6 +1,13 @@
 # Labsoft
 
-Minimal Vite + TypeScript starter.
+Lab register app with a Vite frontend and Node/Express API.
+
+## Storage
+
+- Default local mode uses JSON files in `server/data`
+- Production-ready mode uses PostgreSQL when `DATABASE_URL` is set
+- On first boot with `DATABASE_URL`, existing JSON data is migrated automatically into PostgreSQL if the database is empty
+- Backups remain JSON exports in `server/data/backups`
 
 ## Login
 
@@ -35,6 +42,15 @@ Admin role gets an `Admin Panel` module with:
 - Permanent register history is stored in `server/data/register-history.json`
 - Every create/update/delete is appended to register history for long-term retention
 - Backup/restore now includes register history as well
+
+When `DATABASE_URL` is configured:
+
+- Users are stored in PostgreSQL
+- Issue records are stored in PostgreSQL
+- Receiving records are stored in PostgreSQL
+- Audit entries are stored in PostgreSQL
+- Register history is stored in PostgreSQL
+- Test master data is stored in PostgreSQL
 
 ### Password Policy
 
@@ -73,19 +89,21 @@ Important:
 
 ## Production Deploy (Recommended)
 
-For a stable client link, deploy on Render (no local tunnel needed).
+For a stable client link, deploy on Render and use a hosted PostgreSQL database such as Supabase.
 
 ### One-time setup
 
 1. Push this project to GitHub.
-2. Open Render dashboard → **New +** → **Blueprint**.
-3. Select your GitHub repo (Render will auto-detect `render.yaml`).
-4. Click **Apply**.
+2. Create a Supabase project and copy its PostgreSQL connection string.
+3. Open Render dashboard → **New +** → **Blueprint**.
+4. Select your GitHub repo (Render will auto-detect `render.yaml`).
+5. Add `DATABASE_URL` in Render environment variables using the Supabase connection string.
+6. Click **Apply**.
 
 ### What this creates
 
 - One web service running both frontend + API on the same domain
-- Persistent disk mounted to `server/data` so users/registers/audit/history stay saved
+- Shared backend storage through PostgreSQL so all users see the same data from any system
 - Health check on `/api/health`
 
 ### Build/Start used in production
@@ -93,4 +111,10 @@ For a stable client link, deploy on Render (no local tunnel needed).
 - Build: `npm ci --production=false && npm run build`
 - Start: `npm run start`
 
-After deploy completes, share the Render URL with client directly.
+### Supabase notes
+
+- Supabase requires SSL; this app enables SSL automatically for non-local `DATABASE_URL` values
+- First deploy with `DATABASE_URL` will auto-create tables
+- If the database is empty, the app imports current JSON data into PostgreSQL automatically on startup
+
+After deploy completes, share the Render URL with client directly. Everyone should use that same URL so they all see the same records.

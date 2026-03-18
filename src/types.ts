@@ -1,5 +1,5 @@
 // Shared types for Labsoft
-export type UserRole = 'admin' | 'staff' | 'customer';
+export type UserRole = 'admin' | 'staff' | 'customer' | 'non-nabl';
 export type ModuleKey = 'issue-entry' | 'issue-records' | 'drawn-entry' | 'drawn-records' | 'admin-panel';
 
 export interface IssueRecord {
@@ -26,6 +26,7 @@ export interface DrawnRecord {
   createdAt?: string;
   status?: 'Pending' | 'In Progress' | 'Reported';
   sampleReceivedByName?: string;
+  scope?: 'default' | 'non-nabl';
   srNo: string;
   reportCode?: string;
   ulrNo?: string;
@@ -64,8 +65,13 @@ export interface AdminAlert {
 }
 
 export interface AuditEntry {
+  id?: string;
   action: string;
   actor: string;
+  target?: string;
+  details?: string;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
   createdAt: string;
 }
 

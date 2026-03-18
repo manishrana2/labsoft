@@ -1,4 +1,5 @@
 import { IssueRecord } from '../types'
+import { formatDisplayDate } from '../utils/dateFormat'
 
 function getIssueStatus(record: IssueRecord): 'Pending' | 'In Progress' | 'Reported' {
   if (record.status === 'Pending' || record.status === 'In Progress' || record.status === 'Reported') {
@@ -21,10 +22,17 @@ function getIssueStatusMeta(status: 'Pending' | 'In Progress' | 'Reported'): { l
 }
 
 // IssueTable component: renders the issue records table
-export function renderIssueTable(records: IssueRecord[], canDelete: boolean, canEdit: boolean, canManageStatus: boolean) {
+export function renderIssueTable(
+  records: IssueRecord[],
+  canDelete: boolean,
+  canEdit: boolean,
+  canManageStatus: boolean,
+  showReceivedBy: boolean
+) {
   if (!records || records.length === 0) {
-    return '<p class="empty-state">No entries yet.</p>';
+    return '<p class="empty-state">No entries yet.</p>'
   }
+
   return `
     <div class="table-wrap">
       <table>
@@ -39,7 +47,7 @@ export function renderIssueTable(records: IssueRecord[], canDelete: boolean, can
             <th>Issued By</th>
             <th>Issued To</th>
             <th>Report Due On</th>
-            <th>Received By</th>
+            ${showReceivedBy ? '<th>Received By</th>' : ''}
             <th>Reported On</th>
             <th>Reported By/Remarks</th>
             <th>Actions</th>
@@ -47,23 +55,23 @@ export function renderIssueTable(records: IssueRecord[], canDelete: boolean, can
         </thead>
         <tbody>
           ${records
-            .map(
-              (item, index) => {
-                const status = getIssueStatus(item)
-                const statusMeta = getIssueStatusMeta(status)
-                return `
+            .map((item, index) => {
+              const status = getIssueStatus(item)
+              const statusMeta = getIssueStatusMeta(status)
+
+              return `
             <tr>
-              <td>${index + 1}</td>
+              <td>${item.srNo ?? String(index + 1)}</td>
               <td>${item.codeNo}</td>
               <td>${item.ulrNo ?? ''}</td>
               <td>${item.sampleDescription}</td>
               <td>${item.parameterToBeTested}</td>
-              <td>${item.issuedOn}</td>
+              <td>${formatDisplayDate(item.issuedOn)}</td>
               <td>${item.issuedBy}</td>
               <td>${item.issuedTo}</td>
-              <td>${item.reportDueOn}</td>
-              <td>${item.receivedByName ?? item.receivedBy}</td>
-              <td>${item.reportedOn}</td>
+              <td>${formatDisplayDate(item.reportDueOn)}</td>
+              ${showReceivedBy ? `<td>${item.receivedByName ?? item.receivedBy}</td>` : ''}
+              <td>${formatDisplayDate(item.reportedOn)}</td>
               <td>${item.reportedByRemarks}</td>
               <td class="actions-col">
                 <span class="status-chip ${statusMeta.className}${canManageStatus ? ' issue-status-interactive' : ''}" ${canManageStatus ? `data-issue-status-id="${item.id ?? ''}"` : ''}>${statusMeta.label}</span>
@@ -76,12 +84,11 @@ export function renderIssueTable(records: IssueRecord[], canDelete: boolean, can
                 ${canDelete ? `<button class="table-action delete" data-issue-delete="${item.id ?? ''}" type="button">Delete</button>` : ''}
               </td>
             </tr>
-          `;
-              }
-            )
+          `
+            })
             .join('')}
         </tbody>
       </table>
     </div>
-  `;
+  `
 }

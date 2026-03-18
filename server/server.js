@@ -5,6 +5,20 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import {
+  initializeStorage,
+  readAudit,
+  readRegisterHistory,
+  readRegisters,
+  readTestMaster,
+  readUsers,
+  storageMode,
+  writeAudit,
+  writeRegisterHistory,
+  writeRegisters,
+  writeTestMaster,
+  writeUsers
+} from './db.js'
 
 const app = express()
 const port = process.env.PORT ?? 3001
@@ -14,11 +28,6 @@ const jwtExpiresIn = '1h'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const clientDistPath = path.join(__dirname, '..', 'dist')
-const usersDbPath = path.join(__dirname, 'data', 'users.json')
-const registersDbPath = path.join(__dirname, 'data', 'registers.json')
-const auditDbPath = path.join(__dirname, 'data', 'audit.json')
-const registerHistoryDbPath = path.join(__dirname, 'data', 'register-history.json')
-const testMasterDbPath = path.join(__dirname, 'data', 'test-master.json')
 const backupsDirPath = path.join(__dirname, 'data', 'backups')
 
 const DEFAULT_USER = {
@@ -33,78 +42,99 @@ const DEFAULT_TEST_MASTER = {
   tests: [
     {
       id: 't1',
-      testName: 'Ambient Air Quality Monitoring & Analysis',
-      description: 'Ambient Air Quality Monitoring & Analysis',
+      testName: 'Ambient Air',
+      description: 'Ambient Air',
       displayOrder: 1
     },
     {
       id: 't2',
-      testName: 'Ambient Air Quality Monitoring & Analysis (Basic)',
-      description: 'Ambient Air Quality Monitoring & Analysis (Basic)',
+      testName: 'Ambient Air (Basic)',
+      description: 'Ambient Air (Basic)',
       displayOrder: 2
     },
     { id: 't3', testName: 'Indoor Air', description: 'Indoor Air', displayOrder: 3 },
     { id: 't4', testName: 'Ambient Noise', description: 'Ambient Noise', displayOrder: 4 },
     { id: 't5', testName: 'Indoor Noise', description: 'Indoor Noise', displayOrder: 5 },
-    { id: 't6', testName: 'DG Stack Emission', description: 'DG Stack Emission', displayOrder: 6 },
+    { id: 't6', testName: 'Stack Emission', description: 'Stack Emission', displayOrder: 6 },
     { id: 't7', testName: 'DG Noise', description: 'DG Noise', displayOrder: 7 },
     { id: 't8', testName: 'ETP Inlet', description: 'ETP Inlet', displayOrder: 8 },
     { id: 't8b', testName: 'ETP Outlet', description: 'ETP Outlet', displayOrder: 9 },
     { id: 't8c', testName: 'STP Inlet', description: 'STP Inlet', displayOrder: 10 },
     { id: 't8d', testName: 'STP Outlet', description: 'STP Outlet', displayOrder: 11 },
     { id: 't8e', testName: 'Waste Water', description: 'Waste Water', displayOrder: 12 },
-    { id: 't9', testName: 'Drinking Water Testing', description: 'Drinking Water Testing', displayOrder: 9 },
-    { id: 't10', testName: 'Ground Water Quality', description: 'Ground Water Quality', displayOrder: 10 },
-    { id: 't11', testName: 'Surface Water Testing', description: 'Surface Water Testing', displayOrder: 11 },
-    { id: 't12', testName: 'Soil Quality Test', description: 'Soil Quality Test', displayOrder: 12 }
+    { id: 't9', testName: 'Drinking Water Basic', description: 'Drinking Water Basic', displayOrder: 9 },
+    { id: 't9b', testName: 'Drinking Water', description: 'Drinking Water', displayOrder: 10 },
+    { id: 't10', testName: 'Ground Water', description: 'Ground Water', displayOrder: 11 },
+    { id: 't11', testName: 'Surface Water', description: 'Surface Water', displayOrder: 12 },
+    { id: 't12', testName: 'Soil', description: 'Soil', displayOrder: 13 },
+    { id: 't13', testName: 'Construction Water', description: 'Construction Water', displayOrder: 14 },
+    { id: 't14', testName: 'Swimming Pool Water', description: 'Swimming Pool Water', displayOrder: 15 }
   ],
   parameters: [
     {
       id: 'p1',
       testId: 't1',
-      parameterName: 'PM10, PM2.5, SO2, NO2, CO, Ammonia, Arsenic, Benzene, Lead, Nickel, Benzo(a)pyrene',
+      parameterName: 'Particulate Matter (Size less than 10 um) or PM10, Particulate Matter (Size less than 2.5 um) or PM2.5, Sulphur Dioxide (as SO2), Nitrogen Dioxide (as NO2), Carbon Monoxide (as CO), Ammonia (as NH3), Arsenic (as As), Benzene, Lead (as Pb), Nickel (as Ni), Benzo(a)pyrene',
       displayOrder: 1
     },
-    { id: 'p2', testId: 't2', parameterName: 'PM10, PM2.5, SO2, NO2, CO', displayOrder: 1 },
-    { id: 'p3', testId: 't3', parameterName: 'PM, SO2, NO2, CO', displayOrder: 1 },
-    { id: 'p4', testId: 't4', parameterName: 'Leq', displayOrder: 1 },
-    { id: 'p5', testId: 't5', parameterName: 'Leq', displayOrder: 1 },
-    { id: 'p6', testId: 't6', parameterName: 'PM, SOx, NOx, CO', displayOrder: 1 },
-    { id: 'p7', testId: 't7', parameterName: 'Leq', displayOrder: 1 },
-    { id: 'p8', testId: 't8', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
-    { id: 'p8b', testId: 't8b', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
-    { id: 'p8c', testId: 't8c', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
-    { id: 'p8d', testId: 't8d', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
-    { id: 'p8e', testId: 't8e', parameterName: 'pH, COD, BOD, TSS, Oil & Grease', displayOrder: 1 },
+    { id: 'p2', testId: 't2', parameterName: 'Particulate Matter (Size less than 10 um) or PM10, Particulate Matter (Size less than 2.5 um) or PM2.5, Sulphur Dioxide (as SO2), Nitrogen Dioxide (as NO2), Carbon Monoxide (as CO)', displayOrder: 1 },
+    { id: 'p3', testId: 't3', parameterName: 'Particulate Matter, Sulphur Dioxide (as SO2), Nitrogen Dioxide (as NO2), Carbon Monoxide (as CO)', displayOrder: 1 },
+    { id: 'p4', testId: 't4', parameterName: 'Noise Level Leq dB(A)', displayOrder: 1 },
+    { id: 'p5', testId: 't5', parameterName: 'Noise Level Leq dB(A)', displayOrder: 1 },
+    { id: 'p6', testId: 't6', parameterName: 'Particulate Matter, Sulphur Oxides (as SOx), Nitrogen Oxides (as NOx), Carbon Monoxide (as CO)', displayOrder: 1 },
+    { id: 'p7', testId: 't7', parameterName: 'Noise Level Leq dB(A)', displayOrder: 1 },
+    { id: 'p8', testId: 't8', parameterName: 'pH, Chemical Oxygen Demand (as O2), Bio-Chemical Oxygen Demand (B.O.D) (at 27 C for 3 days), Total Suspended Solids, Oil & Grease', displayOrder: 1 },
+    { id: 'p8b', testId: 't8b', parameterName: 'pH, Chemical Oxygen Demand (as O2), Bio-Chemical Oxygen Demand (B.O.D) (at 27 C for 3 days), Total Suspended Solids, Oil & Grease', displayOrder: 1 },
+    { id: 'p8c', testId: 't8c', parameterName: 'pH, Chemical Oxygen Demand (as O2), Bio-Chemical Oxygen Demand (B.O.D) (at 27 C for 3 days), Total Suspended Solids, Oil & Grease', displayOrder: 1 },
+    { id: 'p8d', testId: 't8d', parameterName: 'pH, Chemical Oxygen Demand (as O2), Bio-Chemical Oxygen Demand (B.O.D) (at 27 C for 3 days), Total Suspended Solids, Oil & Grease', displayOrder: 1 },
+    { id: 'p8e', testId: 't8e', parameterName: 'pH, Chemical Oxygen Demand (as O2), Bio-Chemical Oxygen Demand (B.O.D) (at 27 C for 3 days), Total Suspended Solids, Oil & Grease', displayOrder: 1 },
     {
       id: 'p9',
       testId: 't9',
-      parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate',
+      parameterName: 'pH, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate (as SO4)',
+      displayOrder: 1
+    },
+    {
+      id: 'p9b',
+      testId: 't9b',
+      parameterName: 'pH, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate (as SO4), Temperature, Conductivity at 25 °C, Total Suspended Solids, Alkalinity (as CaCO3), Bio-Chemical Oxygen Demand (B.O.D) (at 27 C for 3 days), Dissolved Oxygen (as O2), Phosphate (as P/PO4), Sodium (as Na), Manganese (as Mn), Chromium (as Cr), Zinc (as Zn), Potassium (as K), Nitrate (as NO3), Cadmium (as Cd), Lead (as Pb), Copper (as Cu), Chemical Oxygen Demand (as O2), Arsenic (as As)',
       displayOrder: 1
     },
     {
       id: 'p10',
       testId: 't10',
-      parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)',
+      parameterName: 'pH, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound (as C6H5OH), Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Ammonia (as total ammonia-N), Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Chromium (as Cr), Nickel (as Ni), Arsenic (as As)',
       displayOrder: 1
     },
     {
       id: 'p11',
       testId: 't11',
-      parameterName: 'pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic',
+      parameterName: 'pH, Temperature, Turbidity, Conductivity at 25 °C, Total Suspended Solids, Alkalinity (as CaCO3), Bio-Chemical Oxygen Demand (B.O.D) (at 27 C for 3 days), Dissolved Oxygen (as O2), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Total Dissolved Solids (TDS), Total Hardness (as CaCO3), Sulphate (as SO4), Phosphate (as P/PO4), Sodium (as Na), Manganese (as Mn), Chromium (as Cr), Zinc (as Zn), Potassium (as K), Nitrate (as NO3), Cadmium (as Cd), Lead (as Pb), Copper (as Cu), Chemical Oxygen Demand (as O2), Arsenic (as As)',
       displayOrder: 1
     },
     {
       id: 'p12',
       testId: 't12',
-      parameterName: 'Texture, Sand %, Clay %, Moisture %, Silt %, pH, Electrical Conductivity, Potassium, Sodium, Calcium, Magnesium, Sodium Absorption Ratio, Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Available Phosphorus, Organic Matter, Porosity',
+      parameterName: 'Soil Texture, Soil Texture (Sand %), Soil Texture (Clay %), Moisture Content, Soil Texture (Silt %), pH, Electrical Conductivity, Potassium (as K), Sodium (as Na), Calcium (as Ca), Magnesium (as Mg), Sodium Absorption Ratio (SAR), Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Phosphorous, Organic Matter, Porosity',
+      displayOrder: 1
+    },
+    {
+      id: 'p13',
+      testId: 't13',
+      parameterName: 'Chloride (as Cl), Inorganic Solids, Organic Solids, pH, Sulphate (as SO4/SO3), To Neutralize 100 ml Sample of Water With 0.02 N H2SO4, To Neutralize 100 ml Sample of Water With 0.02 N NaOH, Total Dissolved Solids (TDS), Total Suspended Solids',
+      displayOrder: 1
+    },
+    {
+      id: 'p14',
+      testId: 't14',
+      parameterName: 'Alkalinity (as CaCO3), Chloride (as Cl), Colour, Odour, Oxygen Absorbed in 4 hours at 27 C, pH, Taste, Total Dissolved Solids (TDS), Total Residual Chlorine, Turbidity, Iron (as Fe), Lead (as Pb)',
       displayOrder: 1
     }
   ]
 }
 
 const getUserRole = (user) => {
-  if (user?.role === 'admin' || user?.role === 'staff' || user?.role === 'customer') {
+  if (user?.role === 'admin' || user?.role === 'staff' || user?.role === 'customer' || user?.role === 'non-nabl') {
     return user.role
   }
 
@@ -113,6 +143,18 @@ const getUserRole = (user) => {
   }
 
   return user?.email === DEFAULT_USER.email ? 'admin' : 'staff'
+}
+
+const getDrawnScopeForRole = (role) => (role === 'non-nabl' ? 'non-nabl' : 'default')
+
+const getDrawnRecordScope = (record) => {
+  const scope = String(record?.scope ?? '').trim().toLowerCase()
+  return scope === 'non-nabl' ? 'non-nabl' : 'default'
+}
+
+const filterDrawnRecordsByRole = (records, role) => {
+  const scope = getDrawnScopeForRole(role)
+  return records.filter((record) => getDrawnRecordScope(record) === scope)
 }
 
 const getRequestRole = (req) => getUserRole({ role: req.user?.role, email: req.user?.email })
@@ -213,99 +255,6 @@ const sanitizeUser = (user) => ({
   isActive: user.isActive !== false,
   createdAt: user.createdAt
 })
-
-const readUsers = async () => {
-  try {
-    const content = await fs.readFile(usersDbPath, 'utf8')
-    const users = JSON.parse(content)
-    return Array.isArray(users) ? users : []
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      return []
-    }
-    throw error
-  }
-}
-
-const writeUsers = async (users) => {
-  await fs.writeFile(usersDbPath, JSON.stringify(users, null, 2))
-}
-
-const readRegisters = async () => {
-  try {
-    const content = await fs.readFile(registersDbPath, 'utf8')
-    const parsed = JSON.parse(content)
-
-    return {
-      issueRecords: Array.isArray(parsed.issueRecords) ? parsed.issueRecords : [],
-      drawnRecords: Array.isArray(parsed.drawnRecords) ? parsed.drawnRecords : []
-    }
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      return { issueRecords: [], drawnRecords: [] }
-    }
-    throw error
-  }
-}
-
-const writeRegisters = async (registers) => {
-  await fs.writeFile(registersDbPath, JSON.stringify(registers, null, 2))
-}
-
-const readTestMaster = async () => {
-  try {
-    const content = await fs.readFile(testMasterDbPath, 'utf8')
-    const parsed = JSON.parse(content)
-
-    return {
-      tests: Array.isArray(parsed.tests) ? parsed.tests : [],
-      parameters: Array.isArray(parsed.parameters) ? parsed.parameters : []
-    }
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      return { tests: [], parameters: [] }
-    }
-    throw error
-  }
-}
-
-const writeTestMaster = async (payload) => {
-  await fs.writeFile(testMasterDbPath, JSON.stringify(payload, null, 2))
-}
-
-const readAudit = async () => {
-  try {
-    const content = await fs.readFile(auditDbPath, 'utf8')
-    const entries = JSON.parse(content)
-    return Array.isArray(entries) ? entries : []
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      return []
-    }
-    throw error
-  }
-}
-
-const writeAudit = async (entries) => {
-  await fs.writeFile(auditDbPath, JSON.stringify(entries, null, 2))
-}
-
-const readRegisterHistory = async () => {
-  try {
-    const content = await fs.readFile(registerHistoryDbPath, 'utf8')
-    const entries = JSON.parse(content)
-    return Array.isArray(entries) ? entries : []
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      return []
-    }
-    throw error
-  }
-}
-
-const writeRegisterHistory = async (entries) => {
-  await fs.writeFile(registerHistoryDbPath, JSON.stringify(entries, null, 2))
-}
 
 const readBackupFile = async (fileName) => {
   const normalizedFileName = String(fileName ?? '').trim()
@@ -605,18 +554,22 @@ const requireAdmin = (req, res, next) => {
 }
 
 const requireDrawnAccess = (req, res, next) => {
+  return next()
+}
+
+const requireDrawnUpdateAccess = (req, res, next) => {
   const role = getRequestRole(req)
-  if (role === 'staff') {
-    return res.status(403).json({ message: 'Staff can access only Issue Register modules.' })
+  if (role !== 'admin' && role !== 'staff' && role !== 'customer' && role !== 'non-nabl') {
+    return res.status(403).json({ message: 'Only admin, staff, customer care, and Non NABL can modify receiving records.' })
   }
 
   return next()
 }
 
-const requireDrawnManageAccess = (req, res, next) => {
+const requireDrawnDeleteAccess = (req, res, next) => {
   const role = getRequestRole(req)
-  if (role !== 'admin' && role !== 'customer') {
-    return res.status(403).json({ message: 'Only admin and customer care can modify or delete receiving records.' })
+  if (role !== 'admin' && role !== 'customer' && role !== 'non-nabl') {
+    return res.status(403).json({ message: 'Only admin, customer care, and Non NABL can delete receiving records.' })
   }
 
   return next()
@@ -671,11 +624,6 @@ const validateIssueRecordPayload = (record, existingRecords = [], excludeId = ''
     }
   })
 
-  const sampleCategory = getSampleCategory(record?.sampleDescription)
-  if (!sampleCategory) {
-    errors.push(buildValidationError('sampleDescription', 'Sample category must include Air, Water, Soil, or Noise.'))
-  }
-
   if (record?.issuedOn && !isValidDateInput(record.issuedOn)) {
     errors.push(buildValidationError('issuedOn', 'Issued On must be a valid date.'))
   }
@@ -699,21 +647,15 @@ const validateIssueRecordPayload = (record, existingRecords = [], excludeId = ''
     errors.push(buildValidationError('reportedOn', 'Reported On cannot be earlier than Issued On.'))
   }
 
-  const srNo = normalizeText(record?.srNo)
   const codeNo = normalizeText(record?.codeNo)
   const ulrNo = normalizeText(record?.ulrNo)
   const duplicate = existingRecords.find(
     (entry) =>
       String(entry.id) !== String(excludeId) &&
-      (normalizeText(entry.srNo) === srNo ||
-        normalizeText(entry.codeNo) === codeNo ||
-        (ulrNo && normalizeText(entry.ulrNo) === ulrNo))
+      (normalizeText(entry.codeNo) === codeNo || (ulrNo && normalizeText(entry.ulrNo) === ulrNo))
   )
 
   if (duplicate) {
-    if (normalizeText(duplicate.srNo) === srNo) {
-      errors.push(buildValidationError('srNo', `Duplicate Sr.No. found: ${record.srNo}`))
-    }
     if (normalizeText(duplicate.codeNo) === codeNo) {
       errors.push(buildValidationError('codeNo', `Duplicate Code No. found: ${record.codeNo}`))
     }
@@ -744,11 +686,6 @@ const validateDrawnRecordPayload = (record, existingRecords = [], excludeId = ''
       errors.push(buildValidationError(field, message))
     }
   })
-
-  const sampleCategory = getSampleCategory(record?.sampleDescription)
-  if (!sampleCategory) {
-    errors.push(buildValidationError('sampleDescription', 'Sample category must include Air, Water, Soil, or Noise.'))
-  }
 
   if (record?.sampleDrawnOn && !isValidDateInput(record.sampleDrawnOn)) {
     errors.push(buildValidationError('sampleDrawnOn', 'Sample Drawn On must be a valid date.'))
@@ -875,7 +812,7 @@ app.get('/api/registers', authenticateToken, async (_req, res) => {
     receivedByName: resolveUserDisplayByCode(users, record.receivedBy)
   }))
 
-  const drawnRecords = registers.drawnRecords.map((record) => ({
+  const drawnRecords = filterDrawnRecordsByRole(registers.drawnRecords, role).map((record) => ({
     ...record,
     sampleReceivedByName: resolveUserDisplayByCode(users, record.sampleReceivedBy)
   }))
@@ -884,6 +821,13 @@ app.get('/api/registers', authenticateToken, async (_req, res) => {
     return res.json({
       issueRecords,
       drawnRecords: []
+    })
+  }
+
+  if (role === 'non-nabl') {
+    return res.json({
+      issueRecords: [],
+      drawnRecords
     })
   }
 
@@ -914,8 +858,6 @@ app.get('/api/staff/receiving-by-report-code/:reportCode', authenticateToken, as
   const registers = await readRegisters()
   const normalize = (v) => String(v ?? '').replace(/\s+/g, '').toLowerCase()
   const normalizedInput = normalize(reportCode)
-  const debugList = registers.drawnRecords.map(entry => ({ raw: entry.reportCode, normalized: normalize(entry.reportCode) }))
-  console.log('Receiving lookup:', { input: reportCode, normalizedInput, debugList })
   const match = registers.drawnRecords.find((entry) => normalize(entry.reportCode) === normalizedInput)
 
   if (!match) {
@@ -930,8 +872,9 @@ app.get('/api/staff/receiving-by-report-code/:reportCode', authenticateToken, as
       sampleDescription: String(match.sampleDescription ?? '').trim(),
       parameterToBeTested: String(match.parameterToBeTested ?? '').trim(),
       issuedOn: String(match.sampleDrawnOn ?? '').trim(),
-      issuedBy: String(match.sampleDrawnBy ?? '').trim(),
-      issuedTo: String(match.sampleReceivedBy ?? '').trim(),
+      issuedBy: '',
+      issuedTo: '',
+      receivedBy: '',
       reportDueOn: String(match.reportDueOn ?? '').trim()
     }
   })
@@ -940,6 +883,28 @@ app.get('/api/staff/receiving-by-report-code/:reportCode', authenticateToken, as
 const findReceivingByReportCode = (registers, reportCode) => {
   const normalizedInput = String(reportCode ?? '').replace(/\s+/g, '').toLowerCase()
   return registers.drawnRecords.find((entry) => String(entry.reportCode ?? '').replace(/\s+/g, '').toLowerCase() === normalizedInput) ?? null
+}
+
+const syncIssueRecordFromReceiving = (record, receivingSource) => {
+  if (!receivingSource) {
+    return record
+  }
+
+  return {
+    ...record,
+    srNo: String(receivingSource?.srNo ?? '').trim(),
+    codeNo: String(receivingSource?.reportCode ?? '').trim(),
+    sampleDescription: String(receivingSource?.sampleDescription ?? '').trim(),
+    parameterToBeTested: String(receivingSource?.parameterToBeTested ?? '').trim(),
+    ulrNo: String(record?.ulrNo ?? receivingSource?.ulrNo ?? '').trim(),
+    issuedOn: String(record?.issuedOn ?? '').trim(),
+    issuedBy: String(record?.issuedBy ?? '').trim(),
+    issuedTo: String(record?.issuedTo ?? '').trim(),
+    receivedBy: String(record?.receivedBy ?? '').trim(),
+    reportedOn: String(record?.reportedOn ?? '').trim(),
+    reportedByRemarks: String(record?.reportedByRemarks ?? '').trim(),
+    reportDueOn: String(receivingSource?.reportDueOn ?? '').trim()
+  }
 }
 
 app.post('/api/registers/issue', authenticateToken, requireIssueEntryAccess, async (req, res) => {
@@ -964,21 +929,36 @@ app.post('/api/registers/issue', authenticateToken, requireIssueEntryAccess, asy
   }
 
   const registers = await readRegisters()
-  const receivingSource = actorRole === 'staff' ? findReceivingByReportCode(registers, record.codeNo) : null
+  const receivingSource = findReceivingByReportCode(registers, record.codeNo)
   if (actorRole === 'staff' && !receivingSource) {
     return res.status(404).json({ message: 'No receiving entry found for this Report Code.' })
   }
 
-  const effectiveRecord = actorRole !== 'staff'
-    ? record
-    : {
-        ...record,
-        srNo: String(receivingSource?.srNo ?? '').trim(),
-        codeNo: String(receivingSource?.reportCode ?? '').trim(),
-        sampleDescription: String(receivingSource?.sampleDescription ?? '').trim(),
-        parameterToBeTested: String(receivingSource?.parameterToBeTested ?? '').trim(),
-        ulrNo: String(receivingSource?.ulrNo ?? '').trim()
-      }
+  const existingIssueRecordIndex = registers.issueRecords.findIndex(
+    (entry) => String(entry.codeNo ?? '').trim().toLowerCase() === String(record.codeNo ?? '').trim().toLowerCase()
+  )
+  const existingIssueRecordId = existingIssueRecordIndex >= 0 ? String(registers.issueRecords[existingIssueRecordIndex]?.id ?? '') : ''
+  const existingIssueRecord = existingIssueRecordIndex >= 0 ? registers.issueRecords[existingIssueRecordIndex] : null
+
+  if (actorRole === 'staff' && !existingIssueRecord) {
+    return res.status(404).json({ message: 'No customer care issue entry found for this Report Code.' })
+  }
+
+  const effectiveRecord = actorRole === 'staff' && existingIssueRecord
+    ? syncIssueRecordFromReceiving(
+        {
+          ...existingIssueRecord,
+          ...record,
+          issuedOn: String(record?.issuedOn ?? existingIssueRecord.issuedOn ?? '').trim(),
+          issuedBy: String(record?.issuedBy ?? existingIssueRecord.issuedBy ?? '').trim(),
+          issuedTo: String(record?.issuedTo ?? existingIssueRecord.issuedTo ?? '').trim(),
+          receivedBy: String(record?.receivedBy ?? existingIssueRecord.receivedBy ?? '').trim(),
+          reportedOn: String(record?.reportedOn ?? existingIssueRecord.reportedOn ?? '').trim(),
+          reportedByRemarks: String(record?.reportedByRemarks ?? existingIssueRecord.reportedByRemarks ?? '').trim()
+        },
+        receivingSource
+      )
+    : syncIssueRecordFromReceiving(record, receivingSource)
 
   const ulrNo = String(effectiveRecord.ulrNo ?? '').trim()
   const needsUlrNo = requiresUlrNo(effectiveRecord.sampleDescription)
@@ -986,7 +966,7 @@ app.post('/api/registers/issue', authenticateToken, requireIssueEntryAccess, asy
     return res.status(400).json({ message: 'ULR No. is required for Drinking Water or Ground Water samples.', field: 'ulrNo' })
   }
 
-  const validationErrors = validateIssueRecordPayload(effectiveRecord, registers.issueRecords)
+  const validationErrors = validateIssueRecordPayload(effectiveRecord, registers.issueRecords, existingIssueRecordId)
   if (validationErrors.length > 0) {
     return res.status(400).json({ message: validationErrors[0].message, field: validationErrors[0].field, errors: validationErrors })
   }
@@ -994,7 +974,7 @@ app.post('/api/registers/issue', authenticateToken, requireIssueEntryAccess, asy
   const normalizedRecord = {
     ...Object.fromEntries(requiredFields.map((field) => [field, String(effectiveRecord[field]).trim()])),
     ulrNo: needsUlrNo ? ulrNo : '',
-    receivedBy: actorRole === 'staff' ? assignedUserCode : String(effectiveRecord.receivedBy).trim(),
+    receivedBy: String(effectiveRecord.receivedBy).trim(),
     status: normalizeRecordStatus(effectiveRecord.status, String(effectiveRecord.reportedOn ?? '').trim() ? 'Reported' : 'Pending'),
     reportedOn: String(effectiveRecord.reportedOn ?? '').trim(),
     reportedByRemarks: String(effectiveRecord.reportedByRemarks ?? '').trim()
@@ -1002,6 +982,38 @@ app.post('/api/registers/issue', authenticateToken, requireIssueEntryAccess, asy
 
   if (normalizedRecord.status !== 'Reported') {
     normalizedRecord.reportedOn = ''
+  }
+
+  if (existingIssueRecordIndex >= 0) {
+    const previousRecord = registers.issueRecords[existingIssueRecordIndex]
+    const updatedRecord = {
+      ...normalizedRecord,
+      id: previousRecord.id,
+      createdAt: previousRecord.createdAt ?? new Date().toISOString()
+    }
+
+    registers.issueRecords[existingIssueRecordIndex] = updatedRecord
+    await writeRegisters(registers)
+    await appendRegisterHistory({
+      action: 'UPDATE',
+      source: 'issue',
+      actor: req.user?.email,
+      recordId: updatedRecord.id,
+      srNo: updatedRecord.srNo,
+      data: updatedRecord,
+      beforeData: previousRecord,
+      afterData: updatedRecord
+    })
+    await appendAudit({
+      actor: req.user?.email,
+      action: 'ISSUE_UPDATE',
+      target: updatedRecord.id,
+      details: `SrNo: ${updatedRecord.srNo}`,
+      before: previousRecord,
+      after: updatedRecord
+    })
+
+    return res.json({ record: updatedRecord })
   }
 
   normalizedRecord.id = makeRecordId('iss')
@@ -1044,13 +1056,6 @@ app.put('/api/registers/issue/:id', authenticateToken, requireIssueManageAccess,
     'receivedBy'
   ]
 
-  const { user: actor } = await getAuthenticatedUser(req)
-  const actorRole = actor ? getUserRole(actor) : getRequestRole(req)
-  const assignedUserCode = normalizeUserCode(actor?.userCode)
-  if (actorRole === 'staff' && !assignedUserCode) {
-    return res.status(400).json({ message: 'Unique number is not assigned to your account. Contact admin.' })
-  }
-
   const registers = await readRegisters()
   const index = registers.issueRecords.findIndex((entry) => String(entry.id) === String(id))
   if (index === -1) {
@@ -1058,16 +1063,7 @@ app.put('/api/registers/issue/:id', authenticateToken, requireIssueManageAccess,
   }
 
   const previousRecord = registers.issueRecords[index]
-  const effectiveRecord = actorRole !== 'staff'
-    ? record
-    : {
-        ...record,
-        srNo: String(previousRecord.srNo ?? '').trim(),
-        codeNo: String(previousRecord.codeNo ?? '').trim(),
-        sampleDescription: String(previousRecord.sampleDescription ?? '').trim(),
-        parameterToBeTested: String(previousRecord.parameterToBeTested ?? '').trim(),
-        ulrNo: String(previousRecord.ulrNo ?? '').trim()
-      }
+  const effectiveRecord = record
 
   const ulrNo = String(effectiveRecord.ulrNo ?? '').trim()
   const needsUlrNo = requiresUlrNo(effectiveRecord.sampleDescription)
@@ -1083,7 +1079,7 @@ app.put('/api/registers/issue/:id', authenticateToken, requireIssueManageAccess,
   const updatedRecord = {
     ...Object.fromEntries(requiredFields.map((field) => [field, String(effectiveRecord[field]).trim()])),
     ulrNo: needsUlrNo ? ulrNo : '',
-    receivedBy: actorRole === 'staff' ? assignedUserCode : String(effectiveRecord.receivedBy).trim(),
+    receivedBy: String(effectiveRecord.receivedBy).trim(),
     status: normalizeRecordStatus(effectiveRecord.status, String(effectiveRecord.reportedOn ?? '').trim() ? 'Reported' : 'Pending'),
     reportedOn: String(effectiveRecord.reportedOn ?? '').trim(),
     reportedByRemarks: String(effectiveRecord.reportedByRemarks ?? '').trim(),
@@ -1173,15 +1169,18 @@ app.post('/api/registers/drawn', authenticateToken, requireDrawnAccess, async (r
 
   const { user: actor } = await getAuthenticatedUser(req)
   const actorRole = actor ? getUserRole(actor) : getRequestRole(req)
+  const drawnScope = getDrawnScopeForRole(actorRole)
 
   const registers = await readRegisters()
-  const validationErrors = validateDrawnRecordPayload(record, registers.drawnRecords)
+  const visibleDrawnRecords = filterDrawnRecordsByRole(registers.drawnRecords, actorRole)
+  const validationErrors = validateDrawnRecordPayload(record, visibleDrawnRecords)
   if (validationErrors.length > 0) {
     return res.status(400).json({ message: validationErrors[0].message, field: validationErrors[0].field, errors: validationErrors })
   }
 
   const normalizedRecord = {
     ...Object.fromEntries(requiredFields.map((field) => [field, String(record[field]).trim()])),
+    scope: drawnScope,
     ulrNo: needsUlrNo ? ulrNo : '',
     sampleReceivedBy: String(record.sampleReceivedBy).trim(),
     status: normalizeRecordStatus(record.status, 'Pending')
@@ -1211,7 +1210,7 @@ app.post('/api/registers/drawn', authenticateToken, requireDrawnAccess, async (r
   return res.status(201).json({ record: normalizedRecord })
 })
 
-app.put('/api/registers/drawn/:id', authenticateToken, requireDrawnManageAccess, async (req, res) => {
+app.put('/api/registers/drawn/:id', authenticateToken, requireDrawnUpdateAccess, async (req, res) => {
   const { id } = req.params
   const record = req.body
   const requiredFields = [
@@ -1234,14 +1233,19 @@ app.put('/api/registers/drawn/:id', authenticateToken, requireDrawnManageAccess,
 
   const { user: actor } = await getAuthenticatedUser(req)
   const actorRole = actor ? getUserRole(actor) : getRequestRole(req)
+  const drawnScope = getDrawnScopeForRole(actorRole)
 
   const registers = await readRegisters()
   const index = registers.drawnRecords.findIndex((entry) => String(entry.id) === String(id))
   if (index === -1) {
     return res.status(404).json({ message: 'Drawn record not found.' })
   }
+  if (getDrawnRecordScope(registers.drawnRecords[index]) !== drawnScope) {
+    return res.status(404).json({ message: 'Drawn record not found.' })
+  }
 
-  const validationErrors = validateDrawnRecordPayload(record, registers.drawnRecords, id)
+  const visibleDrawnRecords = filterDrawnRecordsByRole(registers.drawnRecords, actorRole)
+  const validationErrors = validateDrawnRecordPayload(record, visibleDrawnRecords, id)
   if (validationErrors.length > 0) {
     return res.status(400).json({ message: validationErrors[0].message, field: validationErrors[0].field, errors: validationErrors })
   }
@@ -1249,6 +1253,7 @@ app.put('/api/registers/drawn/:id', authenticateToken, requireDrawnManageAccess,
   const previousRecord = registers.drawnRecords[index]
   const updatedRecord = {
     ...Object.fromEntries(requiredFields.map((field) => [field, String(record[field]).trim()])),
+    scope: drawnScope,
     ulrNo: needsUlrNo ? ulrNo : '',
     sampleReceivedBy: String(record.sampleReceivedBy).trim(),
     status: normalizeRecordStatus(record.status, 'Pending'),
@@ -1280,10 +1285,14 @@ app.put('/api/registers/drawn/:id', authenticateToken, requireDrawnManageAccess,
   return res.json({ record: updatedRecord })
 })
 
-app.delete('/api/registers/drawn/:id', authenticateToken, requireDrawnManageAccess, async (req, res) => {
+app.delete('/api/registers/drawn/:id', authenticateToken, requireDrawnDeleteAccess, async (req, res) => {
   const { id } = req.params
   const registers = await readRegisters()
+  const drawnScope = getDrawnScopeForRole(getRequestRole(req))
   const deletedRecord = registers.drawnRecords.find((entry) => String(entry.id) === String(id))
+  if (deletedRecord && getDrawnRecordScope(deletedRecord) !== drawnScope) {
+    return res.status(404).json({ message: 'Drawn record not found.' })
+  }
   const nextRecords = registers.drawnRecords.filter((entry) => String(entry.id) !== String(id))
 
   if (nextRecords.length === registers.drawnRecords.length) {
@@ -1324,7 +1333,7 @@ app.post('/api/admin/users', async (req, res) => {
   const name = normalizeUserName(req.body?.name) || getEmailLabel(email)
   const password = String(req.body?.password ?? '').trim()
   const roleInput = String(req.body?.role ?? '').trim().toLowerCase()
-  const role = roleInput === 'admin' ? 'admin' : roleInput === 'customer' ? 'customer' : 'staff'
+  const role = roleInput === 'admin' ? 'admin' : roleInput === 'customer' ? 'customer' : roleInput === 'non-nabl' ? 'non-nabl' : 'staff'
   const userCode = normalizeUserCode(req.body?.userCode)
 
   if (!isValidEmail(email)) {
@@ -1661,7 +1670,8 @@ if (process.env.NODE_ENV === 'production') {
   })
 }
 
-ensureSeedUser()
+initializeStorage()
+  .then(() => ensureSeedUser())
   .then(() => ensureUserDefaults())
   .then(() => ensureRegisterIds())
   .then(() => ensureAuditFile())
@@ -1670,7 +1680,7 @@ ensureSeedUser()
   .then(() => ensureBackupsDir())
   .then(() => {
     app.listen(port, () => {
-      console.log(`Auth API running on http://localhost:${port}`)
+      console.log(`Auth API running on http://localhost:${port} using ${storageMode} storage`)
     })
   })
   .catch((error) => {

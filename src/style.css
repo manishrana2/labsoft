@@ -16,7 +16,7 @@ body {
   background-image: var(--app-bg-image);
   background-repeat: no-repeat;
   background-position: center center;
-  background-size: min(62vmin, 520px);
+  background-size: min(76vmin, 680px);
   background-attachment: fixed;
   color: #0f172a;
 }
@@ -314,6 +314,94 @@ input:focus {
   background: rgba(15, 23, 42, 0.12);
 }
 
+.notification-tray {
+  display: grid;
+  gap: 0.7rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: rgba(15, 23, 42, 0.5);
+  overflow: hidden;
+}
+
+.notification-summary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.notification-summary-copy {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.notification-summary-copy strong {
+  margin: 0;
+  font-size: 1rem;
+  color: #f8fafc;
+}
+
+.notification-summary-copy small {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.notification-summary-arrow {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.notification-list {
+  padding: 0 0.9rem 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+}
+
+.notification-card {
+  padding: 0.75rem 0.8rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.notification-card.overdue {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(127, 29, 29, 0.32);
+}
+
+.notification-card.due-soon {
+  border-color: rgba(245, 158, 11, 0.42);
+  background: rgba(120, 53, 15, 0.3);
+}
+
+.notification-title {
+  margin: 0 0 0.3rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.notification-meta,
+.notification-due {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #dbe4ee;
+}
+
+.notification-due {
+  margin-top: 0.35rem;
+}
+
 .module-header h2 {
   margin: 0;
   color: #f8fafc;
@@ -438,6 +526,7 @@ input:focus {
   justify-content: flex-end;
 }
 
+.parameter-select-all,
 .parameter-clear {
   border: 1px solid rgba(148, 163, 184, 0.5);
   background: rgba(30, 41, 59, 0.65);
@@ -448,6 +537,7 @@ input:focus {
   cursor: pointer;
 }
 
+.parameter-select-all:hover,
 .parameter-clear:hover {
   border-color: rgba(244, 114, 182, 0.8);
 }
@@ -788,6 +878,13 @@ th {
   font-size: 0.83rem;
 }
 
+.audit-detail {
+  display: inline-block;
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+  color: #cbd5e1;
+}
+
 .admin-table-wrap {
   max-height: 300px;
 }
@@ -890,6 +987,7 @@ th {
   .admin-stats,
   .admin-lists,
   .activity-cards,
+  .notification-list,
   .admin-restore-grid {
     grid-template-columns: 1fr;
   }

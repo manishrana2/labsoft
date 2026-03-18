@@ -74,27 +74,33 @@
     },
     {
       "id": "t9",
-      "testName": "Drinking Water Testing",
-      "description": "Drinking Water Testing",
+      "testName": "Drinking Water Basic",
+      "description": "Drinking Water Basic",
       "displayOrder": 13
+    },
+    {
+      "id": "t9b",
+      "testName": "Drinking Water",
+      "description": "Drinking Water",
+      "displayOrder": 14
     },
     {
       "id": "t10",
       "testName": "Ground Water Quality",
       "description": "Ground Water Quality",
-      "displayOrder": 14
+      "displayOrder": 15
     },
     {
       "id": "t11",
       "testName": "Surface Water Testing",
       "description": "Surface Water Testing",
-      "displayOrder": 15
+      "displayOrder": 16
     },
     {
       "id": "t12",
       "testName": "Soil Quality Test",
       "description": "Soil Quality Test",
-      "displayOrder": 16
+      "displayOrder": 17
     }
   ],
   "parameters": [
@@ -174,6 +180,12 @@
       "id": "p9",
       "testId": "t9",
       "parameterName": "pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate",
+      "displayOrder": 1
+    },
+    {
+      "id": "p9b",
+      "testId": "t9b",
+      "parameterName": "pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate, pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic",
       "displayOrder": 1
     },
     {

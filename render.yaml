@@ -6,8 +6,14 @@ services:
     buildCommand: npm ci --production=false && npm run build
     startCommand: NODE_ENV=production npm run start
     healthCheckPath: /api/health
+    disk:
+      name: labsoft-data
+      mountPath: /opt/render/project/src/server/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22
       - key: JWT_SECRET
         generateValue: true
+      - key: DATABASE_URL
+        sync: false
