@@ -9,6 +9,12 @@ Lab register app with a Vite frontend and Node/Express API.
 - On first boot with `DATABASE_URL`, existing JSON data is migrated automatically into PostgreSQL if the database is empty
 - Backups remain JSON exports in `server/data/backups`
 
+## Environment variables
+
+- Copy `.env.example` to `.env` (already ignored) and replace the placeholders before running any server commands.
+- Set `DATABASE_URL` to your Neon (or any PostgreSQL) connection string; SSL is required for Neon and `channel_binding=require` is already available in the template.
+- Define `JWT_SECRET` to harden token signing; this value must match the one used by the frontend when invoking authentication APIs.
+
 ## Login
 
 - Auth is served by local API endpoint `POST /api/login`
@@ -70,6 +76,16 @@ New passwords must include:
 - `npm run share:demo` – run app and generate public demo URL (client opens link, no install needed)
 - `npm run build` – type-check and build for production
 - `npm run preview` – preview production build
+- `npm run desktop:dev` – run desktop wrapper app (Electron)
+- `npm run desktop:dist` – build downloadable desktop installer into `desktop-dist/`
+
+## Desktop Application Build
+
+- Desktop app opens the hosted Labsoft URL in a native app window.
+- Default URL: `https://manishrana2-labsoft.onrender.com`
+- Override URL for another deployment with env var:
+  - macOS/Linux: `LABSOFT_APP_URL=https://your-app-url npm run desktop:dev`
+  - Windows (PowerShell): `$env:LABSOFT_APP_URL='https://your-app-url'; npm run desktop:dev`
 
 ## Zero-Install Client Demo
 

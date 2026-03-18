@@ -188,6 +188,22 @@ input:focus {
   filter: brightness(1.05);
 }
 
+.install-btn {
+  margin-top: 0.2rem;
+  width: 100%;
+}
+
+.install-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.install-hint {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
 .message {
   min-height: 1.25rem;
   margin-top: 0.65rem;

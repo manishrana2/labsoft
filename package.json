@@ -2,18 +2,23 @@
   "name": "labsoft",
   "private": true,
   "version": "0.0.0",
+  "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "node --watch server/server.js",
+    "server": "node server/server.js",
+    "server:watch": "node --watch server/server.js",
     "start": "node server/server.js",
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
     "share:demo": "concurrently \"npm run dev:full\" \"lt --port 5173\"",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "desktop:dev": "electron .",
+    "desktop:dist": "electron-builder"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^4.2.0",
@@ -24,6 +29,37 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "electron": "^37.3.1",
+    "electron-builder": "^26.0.12",
     "localtunnel": "^1.8.3"
+  },
+  "build": {
+    "appId": "com.labsoft.desktop",
+    "productName": "Labsoft",
+    "directories": {
+      "output": "desktop-dist"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "mac": {
+      "target": [
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }

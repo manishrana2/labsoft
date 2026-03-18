@@ -14,6 +14,59 @@ import { IssueRecord, DrawnRecord, Session, UserRole, ModuleKey, AuditEntry } fr
 import { renderIssueTable } from './components/IssueTable'
 import { renderDrawnTable } from './components/DrawnTable'
 import { formatDisplayDate, formatDisplayDateTime } from './utils/dateFormat'
+
+type DeferredInstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+let deferredInstallPrompt: DeferredInstallPromptEvent | null = null
+
+const isStandaloneInstalled = (): boolean => {
+  const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean }
+  return window.matchMedia('(display-mode: standalone)').matches || navigatorWithStandalone.standalone === true
+}
+
+const updateInstallCta = (): void => {
+  const installButton = document.querySelector<HTMLButtonElement>('#install-app-btn')
+  const installHint = document.querySelector<HTMLParagraphElement>('#install-hint')
+
+  if (!installButton || !installHint) {
+    return
+  }
+
+  if (isStandaloneInstalled()) {
+    installButton.disabled = true
+    installButton.textContent = 'App Installed'
+    installHint.textContent = 'Labsoft is already installed on this device.'
+    return
+  }
+
+  installButton.textContent = 'Download App'
+  installButton.disabled = !deferredInstallPrompt
+  installHint.textContent = deferredInstallPrompt
+    ? 'Install once and open Labsoft from desktop/start menu like a normal app.'
+    : 'Open this page in Chrome/Edge and wait a few seconds to enable app install.'
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault()
+  deferredInstallPrompt = event as DeferredInstallPromptEvent
+  updateInstallCta()
+})
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null
+  updateInstallCta()
+})
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Ignore registration errors so login flow keeps working.
+    })
+  })
+}
 // Helper: Escape HTML for safe rendering
 function escapeHtml(value: string): string {
   return value
@@ -3529,6 +3582,8 @@ const renderLogin = (message = '', routeMode: 'push' | 'replace' | null = null):
           </div>
 
           <button class="primary-btn" type="submit">Login</button>
+          <button id="install-app-btn" class="secondary-btn light install-btn" type="button">Download App</button>
+          <p id="install-hint" class="install-hint"></p>
         </form>
 
         <p id="message" class="message">${message}</p>
@@ -3542,16 +3597,48 @@ const renderLogin = (message = '', routeMode: 'push' | 'replace' | null = null):
   const passwordInput = document.querySelector<HTMLInputElement>('#password')
   const togglePasswordButton = document.querySelector<HTMLButtonElement>('#toggle-password')
   const loginButton = document.querySelector<HTMLButtonElement>('button[type="submit"]')
+  const installButton = document.querySelector<HTMLButtonElement>('#install-app-btn')
 
-  if (!form || !messageEl || !passwordInput || !togglePasswordButton || !loginButton) {
+  if (!form || !messageEl || !passwordInput || !togglePasswordButton || !loginButton || !installButton) {
     return
   }
+
+  updateInstallCta()
 
   togglePasswordButton.addEventListener('click', () => {
     const currentType = passwordInput.getAttribute('type')
     const isPasswordHidden = currentType === 'password'
     passwordInput.setAttribute('type', isPasswordHidden ? 'text' : 'password')
     togglePasswordButton.textContent = isPasswordHidden ? 'Hide' : 'Show'
+  })
+
+  installButton.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) {
+      messageEl.textContent = 'Install option unavailable right now. Try Chrome/Edge and refresh once.'
+      messageEl.dataset.state = 'error'
+      updateInstallCta()
+      return
+    }
+
+    try {
+      installButton.disabled = true
+      installButton.textContent = 'Installing...'
+      await deferredInstallPrompt.prompt()
+      const choice = await deferredInstallPrompt.userChoice
+      deferredInstallPrompt = null
+      if (choice.outcome === 'accepted') {
+        messageEl.textContent = 'Install started. After install, open Labsoft like a normal app.'
+        messageEl.dataset.state = ''
+      } else {
+        messageEl.textContent = 'Install prompt was dismissed.'
+        messageEl.dataset.state = 'error'
+      }
+    } catch {
+      messageEl.textContent = 'Unable to open install prompt right now.'
+      messageEl.dataset.state = 'error'
+    } finally {
+      updateInstallCta()
+    }
   })
 
   form.addEventListener('submit', async (event) => {
