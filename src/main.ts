@@ -345,7 +345,7 @@ type MeResponse = {
 
 const FALLBACK_TESTS: TestMasterTest[] = [
   { id: 't1', testName: 'Ambient Air', description: 'Ambient Air', displayOrder: 1 },
-  { id: 't2', testName: 'Ambient Air (Basic)', description: 'Ambient Air (Basic)', displayOrder: 2 },
+  { id: 't2', testName: 'Ambient Air.', description: 'Ambient Air.', displayOrder: 2 },
   { id: 't3', testName: 'Indoor Air', description: 'Indoor Air', displayOrder: 3 },
   { id: 't4', testName: 'Ambient Noise', description: 'Ambient Noise', displayOrder: 4 },
   { id: 't5', testName: 'Indoor Noise', description: 'Indoor Noise', displayOrder: 5 },
@@ -356,9 +356,9 @@ const FALLBACK_TESTS: TestMasterTest[] = [
   { id: 't8c', testName: 'STP Inlet', description: 'STP Inlet', displayOrder: 10 },
   { id: 't8d', testName: 'STP Outlet', description: 'STP Outlet', displayOrder: 11 },
   { id: 't8e', testName: 'Waste Water', description: 'Waste Water', displayOrder: 12 },
-  { id: 't9', testName: 'Drinking Water Basic', description: 'Drinking Water Basic', displayOrder: 13 },
+  { id: 't9', testName: 'Drinking Water.', description: 'Drinking Water.', displayOrder: 13 },
   { id: 't9b', testName: 'Drinking Water', description: 'Drinking Water', displayOrder: 14 },
-  { id: 't10', testName: 'Ground Water', description: 'Ground Water', displayOrder: 15 },
+  { id: 't10', testName: 'Ground Water.', description: 'Ground Water.', displayOrder: 15 },
   { id: 't11', testName: 'Surface Water', description: 'Surface Water', displayOrder: 16 },
   { id: 't12', testName: 'Soil', description: 'Soil', displayOrder: 17 },
   { id: 't13', testName: 'Construction Water', description: 'Construction Water', displayOrder: 18 },
@@ -373,12 +373,15 @@ const normalizeLegacyTestDescription = (value: string): string => {
 
   return trimmed
     .replace(/\s+/g, ' ')
-    .replace('Ambient Air Quality Monitoring & Analysis(Basic)', 'Ambient Air (Basic)')
-    .replace('Ambient Air Quality Monitoring & Analysis (Basic)', 'Ambient Air (Basic)')
+    .replace('Ambient Air Quality Monitoring & Analysis(Basic)', 'Ambient Air.')
+    .replace('Ambient Air Quality Monitoring & Analysis (Basic)', 'Ambient Air.')
+    .replace('Ambient Air (Basic)', 'Ambient Air.')
     .replace('Ambient Air Quality Monitoring & Analysis', 'Ambient Air')
     .replace('DG Stack Emission', 'Stack Emission')
-    .replace('Drinking Water Testing', 'Drinking Water Basic')
-    .replace('Ground Water Quality', 'Ground Water')
+    .replace('Drinking Water Testing', 'Drinking Water.')
+    .replace('Drinking Water Basic', 'Drinking Water.')
+    .replace('Ground Water Basic', 'Ground Water.')
+    .replace('Ground Water Quality', 'Ground Water.')
     .replace('Surface Water Testing', 'Surface Water')
     .replace('Soil Quality Test', 'Soil')
     .replace('Soil Quality', 'Soil')
@@ -491,7 +494,7 @@ const FALLBACK_PARAMETERS: TestMasterParameter[] = [
   { id: 'p8e', testId: 't8e', parameterName: 'pH, Chemical Oxygen Demand (as O2), Bio-Chemical Oxygen Demand (B.O.D) (at 27 C for 3 days), Total Suspended Solids, Oil & Grease', displayOrder: 1 },
   { id: 'p9', testId: 't9', parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate', displayOrder: 1 },
   { id: 'p9b', testId: 't9b', parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate, pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic', displayOrder: 1 },
-  { id: 'p10', testId: 't10', parameterName: 'pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)', displayOrder: 1 },
+  { id: 'p10', testId: 't10', parameterName: 'pH, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate (as SO4)', displayOrder: 1 },
   { id: 'p11', testId: 't11', parameterName: 'pH, Temperature, Turbidity, Conductivity, Total Suspended Solid, Total Alkalinity, BOD, DO, Calcium, Magnesium, Chlorides, Iron, Fluorides, Total Dissolved Solids, Total Hardness, Sulphate (SO4), Phosphate, Sodium, Manganese, Total Chromium, Zinc, Potassium, Nitrates, Cadmium, Lead, Copper, COD, Arsenic', displayOrder: 1 },
   { id: 'p12', testId: 't12', parameterName: 'Texture, Sand %, Clay %, Moisture %, Silt %, pH, Electrical Conductivity, Potassium, Sodium, Calcium, Magnesium, Sodium Absorption Ratio, Water Holding Capacity, Total Kjeldahl Nitrogen, Bulk Density, Available Phosphorus, Organic Matter, Porosity', displayOrder: 1 },
   { id: 'p13', testId: 't13', parameterName: 'Chloride (as Cl), Inorganic Solids, Organic Solids, pH, Sulphate (as SO4/SO3), To Neutralize 100 ml Sample of Water With 0.02 N H2SO4, To Neutralize 100 ml Sample of Water With 0.02 N NaOH, Total Dissolved Solids (TDS), Total Suspended Solids', displayOrder: 1 },

@@ -8,8 +8,8 @@
     },
     {
       "id": "t2",
-      "testName": "Ambient Air Quality Monitoring & Analysis (Basic)",
-      "description": "Ambient Air Quality Monitoring & Analysis (Basic)",
+      "testName": "Ambient Air.",
+      "description": "Ambient Air.",
       "displayOrder": 2
     },
     {
@@ -74,8 +74,8 @@
     },
     {
       "id": "t9",
-      "testName": "Drinking Water Basic",
-      "description": "Drinking Water Basic",
+      "testName": "Drinking Water.",
+      "description": "Drinking Water.",
       "displayOrder": 13
     },
     {
@@ -86,8 +86,8 @@
     },
     {
       "id": "t10",
-      "testName": "Ground Water Quality",
-      "description": "Ground Water Quality",
+      "testName": "Ground Water.",
+      "description": "Ground Water.",
       "displayOrder": 15
     },
     {
@@ -191,7 +191,7 @@
     {
       "id": "p10",
       "testId": "t10",
-      "parameterName": "pH Value, Colour, Odour, Taste, Turbidity, Total Dissolved Solids, Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound, Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Total Ammonia, Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Total Chromium (as Cr), Nickel (as Ni), Arsenic (as As)",
+      "parameterName": "pH, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate (as SO4)",
       "displayOrder": 1
     },
     {

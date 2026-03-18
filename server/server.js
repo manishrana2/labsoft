@@ -49,8 +49,8 @@ const DEFAULT_TEST_MASTER = {
     },
     {
       id: 't2',
-      testName: 'Ambient Air (Basic)',
-      description: 'Ambient Air (Basic)',
+      testName: 'Ambient Air.',
+      description: 'Ambient Air.',
       displayOrder: 2
     },
     { id: 't3', testName: 'Indoor Air', description: 'Indoor Air', displayOrder: 3 },
@@ -63,9 +63,9 @@ const DEFAULT_TEST_MASTER = {
     { id: 't8c', testName: 'STP Inlet', description: 'STP Inlet', displayOrder: 10 },
     { id: 't8d', testName: 'STP Outlet', description: 'STP Outlet', displayOrder: 11 },
     { id: 't8e', testName: 'Waste Water', description: 'Waste Water', displayOrder: 12 },
-    { id: 't9', testName: 'Drinking Water Basic', description: 'Drinking Water Basic', displayOrder: 9 },
+    { id: 't9', testName: 'Drinking Water.', description: 'Drinking Water.', displayOrder: 9 },
     { id: 't9b', testName: 'Drinking Water', description: 'Drinking Water', displayOrder: 10 },
-    { id: 't10', testName: 'Ground Water', description: 'Ground Water', displayOrder: 11 },
+    { id: 't10', testName: 'Ground Water.', description: 'Ground Water.', displayOrder: 11 },
     { id: 't11', testName: 'Surface Water', description: 'Surface Water', displayOrder: 12 },
     { id: 't12', testName: 'Soil', description: 'Soil', displayOrder: 13 },
     { id: 't13', testName: 'Construction Water', description: 'Construction Water', displayOrder: 14 },
@@ -104,7 +104,7 @@ const DEFAULT_TEST_MASTER = {
     {
       id: 'p10',
       testId: 't10',
-      parameterName: 'pH, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Total Hardness (as CaCO3), Calcium (as Ca), Magnesium (as Mg), Chloride (as Cl), Iron (as Fe), Fluoride (as F), Free Residual Chlorine, Phenolic Compound (as C6H5OH), Anionic Surface Detergents (as MBAS), Sulphate (as SO4), Nitrate (as NO3), Alkalinity (as CaCO3), Copper (as Cu), Ammonia (as total ammonia-N), Sulphide (as H2S), Zinc (as Zn), Manganese (as Mn), Boron (as B), Selenium (as Se), Cadmium (as Cd), Lead (as Pb), Chromium (as Cr), Nickel (as Ni), Arsenic (as As)',
+      parameterName: 'pH, Colour, Odour, Taste, Turbidity, Total Dissolved Solids (TDS), Calcium (as Ca), Chloride (as Cl), Fluoride (as F), Iron (as Fe), Magnesium (as Mg), Total Hardness (as CaCO3), Sulphate (as SO4)',
       displayOrder: 1
     },
     {
